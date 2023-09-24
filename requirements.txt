@@ -1,2 +1,2 @@
 flask
-ovos-persona
+ovos-persona @ git+https://github.com/OpenVoiceOS/ovos-persona
