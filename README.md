@@ -4,7 +4,7 @@
 
 ## Usage
 
-OpenAI compatible API
+OpenAI compatible API, for usage with OVOS see [ovos-solver-plugin-openai-persona](https://github.com/OpenVoiceOS/ovos-solver-plugin-openai-persona)
 
 ```python
 import openai
@@ -30,4 +30,41 @@ else:
         if content != None:
             print(content, end="", flush=True)
 
+```
+
+## Personas
+
+personas don't need to use LLMs, find solver plugins [here](https://github.com/OpenVoiceOS?q=solver&type=all)
+
+```
+{
+  "name": "DictionaryMan",
+  "gender": "male",
+  "description": "answers 'what is' questions using wordnet",
+  "solvers": [
+    "ovos-solver-wordnet-plugin",
+    "ovos-solver-failure-plugin"
+  ]
+},
+
+{
+  "name": "InfoSeeker",
+  "gender": "male",
+  "description": "answers questions using duckduckgo, wikipedia and wolfram alpha",
+  "solvers": [
+    "ovos-solver-wikipedia-plugin",
+    "ovos-solver-ddg-plugin",
+    "ovos-solver-wofram-plugin",
+    "ovos-solver-failure-plugin"
+  ]
+},
+
+{
+  "name": "AIMLia",
+  "gender": "female",
+  "description": "chatbot without internet access incapable of factual answers, but can do basic chitchat, powered by using AIML",
+  "solvers": [
+    "ovos-solver-aiml-plugin"
+  ]
+}
 ```
