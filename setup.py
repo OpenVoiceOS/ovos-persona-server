@@ -67,7 +67,7 @@ setup(
     keywords='plugin lang detect translate OVOS OpenVoiceOS',
     entry_points={
         'console_scripts': [
-            'ovos-translate-server=ovos_persona_server.__main__:main'
+            'ovos-persona-server=ovos_persona_server.__main__:main'
         ]
     }
 )
