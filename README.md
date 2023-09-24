@@ -34,37 +34,28 @@ else:
 
 ## Personas
 
-personas don't need to use LLMs, find solver plugins [here](https://github.com/OpenVoiceOS?q=solver&type=all)
+personas don't need to use LLMs, you don't need a beefy GPU to use ovos-persona, find solver plugins [here](https://github.com/OpenVoiceOS?q=solver&type=all)
+
+some repos and skills also provide solvers, such as ovos-classifiers (wordnet), skill-ddg, skill-wikipedia and skill-wolfie
 
 ```
 {
-  "name": "DictionaryMan",
-  "gender": "male",
-  "description": "answers 'what is' questions using wordnet",
-  "solvers": [
-    "ovos-solver-wordnet-plugin",
-    "ovos-solver-failure-plugin"
-  ]
-},
-
-{
-  "name": "InfoSeeker",
-  "gender": "male",
-  "description": "answers questions using duckduckgo, wikipedia and wolfram alpha",
+  "name": "OldSchoolBot",
   "solvers": [
     "ovos-solver-wikipedia-plugin",
     "ovos-solver-ddg-plugin",
-    "ovos-solver-wofram-plugin",
+    "ovos-solver-plugin-wolfram-alpha",
+    "ovos-solver-wordnet-plugin",
+    "ovos-solver-rivescript-plugin",
     "ovos-solver-failure-plugin"
-  ]
-},
-
-{
-  "name": "AIMLia",
-  "gender": "female",
-  "description": "chatbot without internet access incapable of factual answers, but can do basic chitchat, powered by using AIML",
-  "solvers": [
-    "ovos-solver-aiml-plugin"
-  ]
+  ],
+  "ovos-solver-plugin-wolfram-alpha": {"appid": "Y7353-9HQAAL8KKA"}
 }
 ```
+
+this persona would search ddg api / wikipedia for "what is"/"tell me about" questions,
+falling back to wordnet when offline for dictionary look up,
+and finally rivescript for general chitchat,
+we also add the failure solver to be sure the persona always says something
+
+wolfram alpha illustrates how to pass solver configs, it has a requirement for an API key
