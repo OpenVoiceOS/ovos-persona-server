@@ -35,7 +35,7 @@ wolfram alpha illustrates how to pass solver configs, it has a requirement for a
 search/knowledge base solvers can be used together with LLM solvers to ensure factual answers and act as a tool/internet access layer,
 in the example above you would typically replace rivescript with a LLM.
 
-Some solvers may also use other solvers internally, such as a tool implementation for other LLMs
+Some solvers may also use other solvers internally, such as a [MOS (Mixture Of Solvers)](https://github.com/TigreGotico/ovos-MoS)
 
 ## Client side usage
 
