@@ -4,9 +4,11 @@ from setuptools import setup
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
+with open(os.path.join(BASEDIR, "README.md"), "r") as f:
+    long_description = f.read()
+
 def get_version():
     """ Find the version of the package"""
-    version = None
     version_file = os.path.join(BASEDIR, 'ovos_persona_server', 'version.py')
     major, minor, build, alpha = (None, None, None, None)
     with open(version_file) as f:
@@ -44,6 +46,8 @@ setup(
     name='ovos-persona-server',
     version=get_version(),
     description='simple flask server to host OpenVoiceOS persona plugins as a service',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url='https://github.com/OpenVoiceOS/ovos-persona-server',
     author='JarbasAi',
     author_email='jarbasai@mailfence.com',
