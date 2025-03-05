@@ -13,7 +13,7 @@ def main():
 
     app = get_app(os.path.expanduser(args.persona))
 
-    app.run(host=args.host, port=args.port, debug=True)
+    app.run(host=args.host, port=args.port, debug=False)
 
 
 if __name__ == "__main__":
