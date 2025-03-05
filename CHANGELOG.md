@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.3.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.0a1) (2025-03-05)
+## [0.3.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.1a1) (2025-03-05)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.2.1...0.3.0a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.0...0.3.1a1)
 
 **Merged pull requests:**
 
-- feat: add status endpoint for healthcheck and info [\#2](https://github.com/OpenVoiceOS/ovos-persona-server/pull/2) ([JarbasAl](https://github.com/JarbasAl))
+- fix: persona name , add models [\#4](https://github.com/OpenVoiceOS/ovos-persona-server/pull/4) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
