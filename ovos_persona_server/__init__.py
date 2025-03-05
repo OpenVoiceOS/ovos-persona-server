@@ -25,41 +25,11 @@ def get_app(persona_json):
                 "models": {s: persona.config.get(s, {}).get("model")
                            for s in persona.solvers.loaded_modules.keys()}}
 
-    @app.route("/completions", methods=["POST"])
-    def completions():
-        prompt = request.get_json().get("prompt")
-
-        completion_id = "".join(random.choices(string.ascii_letters + string.digits, k=28))
-        completion_timestamp = int(time.time())
-
-        response = persona.complete(prompt)
-
-        return {"choices": [
-            {
-                "finish_reason": "length",
-                "index": 0,
-                "text": response
-            }
-        ],
-            "id": f"chatcmpl-{completion_id}",
-            "created": completion_timestamp,
-            "model": persona.name,
-            "object": "text_completion",
-            "usage": {
-                "prompt_tokens": None,
-                "completion_tokens": None,
-                "total_tokens": None,
-            },
-
-        }
-
     @app.route("/chat/completions", methods=["POST"])
     def chat_completions():
         data = request.get_json()
         stream = data.get("stream", False)
         messages = data.get("messages")
-
-        response = persona.chat(messages)
 
         completion_id = "".join(random.choices(string.ascii_letters + string.digits, k=28))
         completion_timestamp = int(time.time())
@@ -75,7 +45,7 @@ def get_app(persona_json):
                         "index": 0,
                         "message": {
                             "role": "assistant",
-                            "content": response,
+                            "content": persona.chat(messages),
                         },
                         "finish_reason": "stop",
                     }
@@ -88,7 +58,7 @@ def get_app(persona_json):
             }
 
         def streaming():
-            for chunk in response:
+            for chunk in persona.stream(messages):
                 completion_data = {
                     "id": f"chatcmpl-{completion_id}",
                     "object": "chat.completion.chunk",
