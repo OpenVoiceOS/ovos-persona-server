@@ -14,15 +14,16 @@ def get_app(persona_json):
 
     with open(persona_json) as f:
         persona = json.load(f)
+        persona["name"] = persona.get("name") or os.path.basename(persona_json)
 
-    persona = Persona(os.path.basename(persona_json), persona)
+    persona = Persona(persona["name"], persona)
 
     @app.route("/status", methods=["GET"])
     def status():
-        # TODO - expose solvers config? what if it leaks keys?
-        # assume name includes the model if desired
         return {"persona": persona.name,
-                "solvers": list(persona.solvers.loaded_modules.keys())}
+                "solvers": list(persona.solvers.loaded_modules.keys()),
+                "models": {s: persona.config.get(s, {}).get("model")
+                           for s in persona.solvers.loaded_modules.keys()}}
 
     @app.route("/completions", methods=["POST"])
     def completions():
