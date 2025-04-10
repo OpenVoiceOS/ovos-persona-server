@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.3.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.2a1) (2025-03-05)
+## [0.4.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.0a1) (2025-04-10)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.1...0.3.2a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.2...0.4.0a1)
 
 **Merged pull requests:**
 
-- Fix/streaming [\#6](https://github.com/OpenVoiceOS/ovos-persona-server/pull/6) ([JarbasAl](https://github.com/JarbasAl))
+- feat:ollama\_api\_support [\#9](https://github.com/OpenVoiceOS/ovos-persona-server/pull/9) ([JarbasAl](https://github.com/JarbasAl))
 
 
 
