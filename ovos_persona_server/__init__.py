@@ -6,18 +6,36 @@ and includes various API routers for chat, embeddings, Ollama, persona status,
 and mock OpenAI Vector Stores. It now centrally manages the unified SQLite database
 initialization using SQLAlchemy.
 """
-import json
+
 import os
-from typing import Optional
+from contextlib import asynccontextmanager
+from typing import Optional, AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from ovos_persona import Persona
 
-import ovos_persona_server.persona
+from ovos_persona_server.chat import chat_router
+from ovos_persona_server.config import settings
+from ovos_persona_server.embeddings import embeddings_router, get_text_embeddings, get_image_embeddings
+from ovos_persona_server.files import files_router
+from ovos_persona_server.metadata import init_db
+from ovos_persona_server.ollama import ollama_router
+from ovos_persona_server.persona import persona_router, get_default_persona
+from ovos_persona_server.vector_stores import vector_stores_router
+from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
 
 
-def create_persona_app(persona_path: str) -> FastAPI:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
+    """
+    await init_db() # Call init_db from database.py
+    yield
+    # No specific shutdown logic needed
+
+
+def create_persona_app(persona_path: Optional[str] = None) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
@@ -29,24 +47,18 @@ def create_persona_app(persona_path: str) -> FastAPI:
     Returns:
         FastAPI: The configured FastAPI application instance.
     """
-
-    with open(persona_path) as f:
-        persona = json.load(f)
-        persona["name"] = persona.get("name") or os.path.basename(persona_path)
-
-    # TODO - move to dependency injection
-    ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
-
-    from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
+    if persona_path:
+        settings.persona = os.path.expanduser(persona_path)
 
     version_str = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_BUILD}"
     if VERSION_ALPHA:
         version_str += f"a{VERSION_ALPHA}"
-
     app = FastAPI(title="OVOS Persona Server",
                   description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
-                  version=version_str)
+                  version=version_str,
+                  lifespan=lifespan)
 
+    # TODO - from .env
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],  # Allows all origins
@@ -56,12 +68,11 @@ def create_persona_app(persona_path: str) -> FastAPI:
     )
 
     # Include routers for different API functionalities
-    # imported here only after the Persona object is loaded
-    from ovos_persona_server.chat import chat_router
-    from ovos_persona_server.ollama import ollama_router
-
+    app.include_router(persona_router)
     app.include_router(chat_router)
+    app.include_router(embeddings_router)
     app.include_router(ollama_router)
-
+    app.include_router(files_router)
+    app.include_router(vector_stores_router)
 
     return app

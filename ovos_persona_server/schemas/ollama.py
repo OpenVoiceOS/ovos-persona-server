@@ -1,5 +1,6 @@
 import json
 from typing import Any, List, Dict, Optional, Union
+from ovos_persona_server.config import settings
 from pydantic import BaseModel, Field, field_serializer
 
 
@@ -24,7 +25,7 @@ class OllamaChatResponse(BaseModel):
         eval_duration (Optional[int]): Time spent generating the response in nanoseconds.
         done_reason (Optional[str]): The reason the model stopped generating (e.g., "stop", "unload").
     """
-    model: Optional[str] = Field(..., description="The name of the model that generated the response.")
+    model: Optional[str] = Field(settings.openai_model, description="The name of the model that generated the response.")
     created_at: str = Field(..., description="The timestamp when the response was created (ISO 8601 format).")
     message: Dict[str, str] = Field(..., description="The message object containing the role and content of the assistant's reply.")
     done: bool = Field(..., description="Indicates if the response is the final one in a stream.")
@@ -105,7 +106,7 @@ class OllamaChatRequest(BaseModel):
         stream (Optional[bool]): If true, the response will be streamed as a series of JSON objects.
         keep_alive (Optional[str]): Controls how long the model will stay loaded into memory following the request (default: "5m").
     """
-    model: Optional[str] = Field(..., description="The model to use for the chat. Currently, only the persona's default model is supported.")
+    model: Optional[str] = Field(settings.openai_model, description="The model to use for the chat. Currently, only the persona's default model is supported.")
     messages: List[OllamaChatMessage] = Field(..., description="The messages to generate a response for.")
     tools: Optional[List[Dict[str, Any]]] = Field(None, description="List of tools in JSON for the model to use if supported.")
     think: Optional[bool] = Field(False, description="(For thinking models) Should the model think before responding?")
@@ -136,7 +137,7 @@ class OllamaGenerateRequest(BaseModel):
         context (Optional[List[int]]): The context parameter returned from a previous request to /generate,
                                        this can be used to keep a short conversational memory (deprecated).
     """
-    model: Optional[str] = Field(..., description="The model name to use for generation.")
+    model: Optional[str] = Field(settings.llm_model, description="The model name to use for generation.")
     prompt: str = Field(..., description="The prompt to generate a response for.")
     suffix: Optional[str] = Field(None, description="The text after the model response.")
     images: Optional[List[str]] = Field(None, description="A list of base64-encoded images (for multimodal models such as llava).")
@@ -184,7 +185,7 @@ class OllamaModel(BaseModel):
         details (OllamaModelDetails): Detailed information about the model.
     """
     name: Optional[str] = Field(None, description="The full name of the model (e.g., 'llama3:latest').")
-    model: Optional[str] = Field(..., description="The base model name.")
+    model: Optional[str] = Field(settings.llm_model, description="The base model name.")
     digest: Optional[str] = Field("sha256:placeholder_digest", description="The SHA256 digest of the model.")
     size: Optional[int] = Field(0, description="The size of the model in bytes.")
     modified_at: Optional[str] = Field("0", description="The timestamp when the model was last modified (ISO 8601 format).")
@@ -215,7 +216,7 @@ class OllamaEmbedRequest(BaseModel):
         keep_alive (Optional[str]): Controls how long the model will stay loaded into memory
                                     following the request (default: `5m`).
     """
-    model: Optional[str] = Field(..., description="The model name to use for generating embeddings.")
+    model: Optional[str] = Field(settings.openai_model, description="The model name to use for generating embeddings.")
     input: Union[str, List[str]] = Field(..., description="Text or list of texts to generate embeddings for.")
     truncate: Optional[bool] = Field(True, description="Truncates the end of each input to fit within context length. Returns error if `false` and context length is exceeded. Defaults to `true`.")
     options: Optional[Dict[str, Any]] = Field(None, description="Additional model parameters listed in the documentation for the Modelfile such as `temperature`.")
@@ -233,7 +234,7 @@ class OllamaEmbedResponse(BaseModel):
         load_duration (Optional[int]): Time spent loading the model into memory in nanoseconds.
         prompt_eval_count (Optional[int]): Number of tokens in the prompt (or total tokens for multiple inputs).
     """
-    model: Optional[str] = Field(..., description="The name of the model that generated the embeddings.")
+    model: Optional[str] = Field(settings.embeddings_model, description="The name of the model that generated the embeddings.")
     embeddings: List[List[float]] = Field(..., description="A list of embedding vectors. Each inner list is an embedding for a single input.")
     total_duration: Optional[int] = Field(None, description="Time spent generating the response in nanoseconds.")
     load_duration: Optional[int] = Field(None, description="Time spent loading the model into memory in nanoseconds.")

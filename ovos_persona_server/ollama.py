@@ -16,8 +16,9 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, JSONResponse
 from ovos_bus_client.session import SessionManager
 from ovos_persona import Persona
+from ovos_plugin_manager.templates.embeddings import TextEmbedder
 
-
+from ovos_persona_server.embeddings import get_text_embeddings
 from ovos_persona_server.persona import get_default_persona
 from ovos_persona_server.schemas.ollama import (
     OllamaChatResponse,
@@ -371,3 +372,64 @@ async def tags(persona: Persona = Depends(get_default_persona)) -> OllamaTagsRes
         models=[model]
     )
 
+
+@ollama_router.post("/embed", response_model=OllamaEmbedResponse, status_code=status.HTTP_200_OK)
+async def embed_ollama(request_body: OllamaEmbedRequest,
+                       embedder: TextEmbedder = Depends(get_text_embeddings)) -> \
+        OllamaEmbedResponse:
+    """
+    Generates embeddings for a given text or list of texts using the configured text embedder.
+
+    This endpoint adheres to the Ollama API's /api/embed endpoint specification.
+
+    Args:
+        request_body (OllamaEmbedRequest): The request body containing the text(s)
+                                           to embed and the model name, along with
+                                           advanced parameters like `truncate`, `options`,
+                                           and `keep_alive`.
+        embedder (TextEmbedder): The text embedder instance, injected by FastAPI's dependency.
+
+    Returns:
+        OllamaEmbedResponse: A response containing the generated embeddings (list of lists of floats)
+                             and other metadata like model name, durations, and token counts.
+
+    Raises:
+        HTTPException: If the input text(s) to embed are missing or embedding generation fails.
+    """
+    input_data: Union[str, List[str]] = request_body.input
+    model_name: str = request_body.model  # Capture the model name from the request
+
+    # Initialize placeholders for metrics
+    total_duration: int = 0
+    load_duration: int = 0
+    prompt_eval_count: int = 0
+
+    if not input_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Input text(s) for embedding are required.")
+
+    # Ensure input_data is always a list for consistent processing by embedder
+    texts_to_embed: List[str] = [input_data] if isinstance(input_data, str) else input_data
+
+    try:
+        start_time: float = time.time()
+        # Assuming embedder.get_embeddings can handle a list of strings and returns List[List[float]]
+        # If it only handles single strings, a loop would be needed here.
+        embeddings: List[List[float]] = [embedder.get_embeddings(t) for t in texts_to_embed]
+        end_time: float = time.time()
+
+        total_duration = int((end_time - start_time) * 1_000_000_000)
+        # Placeholder for load_duration and prompt_eval_count as TextEmbedder template
+        # does not directly expose these metrics.
+        # For prompt_eval_count, a simple character count can be an approximation.
+        prompt_eval_count = sum(len(text) for text in texts_to_embed)
+
+        return OllamaEmbedResponse(
+            model=model_name,
+            embeddings=embeddings,
+            total_duration=total_duration,
+            load_duration=load_duration,  # Placeholder
+            prompt_eval_count=prompt_eval_count  # Approximate
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to generate embeddings: {e}") from e

@@ -13,7 +13,6 @@ import uvicorn
 from ovos_persona_server import create_persona_app
 
 
-
 def main() -> None:
     """
     Main function to parse arguments and start the Persona Server.

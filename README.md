@@ -1,68 +1,216 @@
-# Persona Server
+# OVOS Persona Server ✨
 
-## Running
+The **OVOS Persona Server** is a flexible and powerful backend service that allows you to define and manage conversational AI personas. It exposes an OpenAI-compatible API, enabling seamless integration with various client applications.
 
-`$ ovos-persona-server --persona rivescript_bot.json`
+-----
 
-## Personas
+## 🚀 Features
 
-personas don't need to use LLMs, you don't need a beefy GPU to use ovos-persona, find solver plugins [here](https://github.com/OpenVoiceOS?q=solver&type=all)
+  * **OpenAI API Compatibility**: Seamlessly integrate with existing OpenAI API client libraries and tools for **chat**, **embeddings**, **files**, and **vector stores**.
+  * **Pydantic Validation**: All API requests and responses benefit from robust **Pydantic validation**, ensuring data integrity and clear schema adherence.
+  * **Persona Loading**: Loads individual personas, each configured to interact using various backend "solvers" as defined in the OVOS Persona documentation.
+  * **Pluggable Embeddings & Vector Databases**: Leverages OVOS plugins for both **text embedding models** and **embeddings database backends**. These components can be replaced individually and are infinitely customizable, allowing you to tailor the system to your specific needs and integrate with a wide range of underlying technologies.
+  * **RAG Compatibility**: Acts as a backend for **client-side Retrieval Augmented Generation (RAG) implementations** that are OpenAI API compatible, providing a robust and flexible knowledge retrieval layer.
+  * **Local Data Handling**: Manage files and vector stores for private, domain-specific knowledge.
+  * **Ollama Endpoint Compatibility**: Provides endpoints compatible with Ollama's API, facilitating integration of OVOS personas with external projects, such as Home Assistant's Ollama integration, by acting as a compatibility layer.
+  * **Companion Metadata Database**: Utilizes a lightweight companion metadata database powered by **SQLAlchemy**, defaulting to an **aiosqlite backend** for efficient and asynchronous local data management.
 
-some repos and skills also provide solvers, such as ovos-classifiers (wordnet), skill-ddg, skill-wikipedia and skill-wolfie
+<img width="966" height="908" alt="image" src="https://github.com/user-attachments/assets/06af7cc4-3f9c-4461-9c94-053cc16d81ab" />
 
+-----
+
+## ⚙️ Installation
+
+To get started with the OVOS Persona Server, we recommend setting up a virtual environment.
+
+```bash
+# Create a virtual environment
+python3 -m venv .venv
+
+# Activate the virtual environment
+source .venv/bin/activate
+
+# Install the server and its dependencies
+pip install ovos-persona-server
 ```
+
+-----
+
+## ▶️ Running the Server
+
+You can launch the server by specifying a persona configuration file.
+
+```bash
+# Run with a persona defined in my_local_llm.json
+ovos-persona-server --persona my_local_llm.json
+```
+
+-----
+
+## 🎭 Personas: The Heart of the Server
+
+A "persona" in the OVOS Persona Server context is a configuration that defines how your conversational agent behaves and responds. The server loads these personas, which are built upon a chain of "solvers" responsible for generating responses.
+
+For detailed documentation on persona creation and solver configuration, please refer to the [Official OVOS Persona Documentation](https://openvoiceos.github.io/ovos-technical-manual/150-personas/).
+
+### Example Persona Configuration
+
+Here's an example of a persona configured to use an LLM via the `ovos-solver-openai-plugin`:
+
+```json
 {
-  "name": "OldSchoolBot",
+  "name": "My Local LLM",
   "solvers": [
-    "ovos-solver-wikipedia-plugin",
-    "ovos-solver-ddg-plugin",
-    "ovos-solver-plugin-wolfram-alpha",
-    "ovos-solver-wordnet-plugin",
-    "ovos-solver-rivescript-plugin",
-    "ovos-solver-failure-plugin"
+    "ovos-solver-openai-plugin"
   ],
-  "ovos-solver-plugin-wolfram-alpha": {"appid": "Y7353-9HQAAL8KKA"}
+  "ovos-solver-openai-plugin": {
+    "api_url": "http://localhost:11434/v1",  // Example: Any project serving LLMs in an OpenAI compatible endpoint like llamacpp
+    "key": "sk-xxxx", # Can be any non-empty string for local setups
+    "model": "qwen2.5:7b",
+    "system_prompt": "You are helping assistant who gives very short and factual answers in maximum twenty words and you don't use emojis"
+  }
 }
 ```
 
-this persona would search ddg api / wikipedia for "what is"/"tell me about" questions,
-falling back to wordnet when offline for dictionary look up,
-and finally rivescript for general chitchat,
-we also add the failure solver to be sure the persona always says something
+This example demonstrates how to configure a persona to proxy requests to an external LLM endpoint. The server handles the routing and ensures the interaction is compatible with the OpenAI API specification.
 
-wolfram alpha illustrates how to pass solver configs, it has a requirement for an API key
+-----
 
-search/knowledge base solvers can be used together with LLM solvers to ensure factual answers and act as a tool/internet access layer,
-in the example above you would typically replace rivescript with a LLM.
+## 🤝 API Usage (OpenAI API Compatible)
 
-Some solvers may also use other solvers internally, such as a [MOS (Mixture Of Solvers)](https://github.com/TigreGotico/ovos-MoS)
+The Persona Server exposes a FastAPI-powered API that is compatible with OpenAI's endpoints for **Chat Completions**, **Embeddings**, **Files**, and **Vector Stores**.
 
-## Client side usage
+### API Documentation
 
-OpenAI compatible API, for usage with OVOS see [ovos-solver-plugin-openai-persona](https://github.com/OpenVoiceOS/ovos-solver-plugin-openai-persona)
+For full API documentation, including all available endpoints, request/response schemas, and interactive testing, navigate to the `/docs` endpoint of your running Persona Server (e.g., `http://localhost:8337/docs`). This documentation is automatically generated by FastAPI using Pydantic models, ensuring accuracy and comprehensive detail.
 
-```python
-import openai
+### cURL Examples
 
-openai.api_key = ""
-openai.api_base = "http://localhost:8337"
+Here are some `curl` examples for interacting with the Persona Server:
 
-# NOTE - most solvers don't support a chat history,
-#  only last message in messages list is considered
-chat_completion = openai.ChatCompletion.create(
-    model="",  # individual personas might support this, passed under context
-    messages=[{"role": "user", "content": "tell me a joke"}],
-    stream=False,
-)
+#### Chat Completions
 
-if isinstance(chat_completion, dict):
-    # not stream
-    print(chat_completion.choices[0].message.content)
-else:
-    # stream
-    for token in chat_completion:
-        content = token["choices"][0]["delta"].get("content")
-        if content != None:
-            print(content, end="", flush=True)
+```bash
+# Non-streaming chat completion
+curl -X POST http://localhost:8337/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "persona-default",
+    "messages": [
+      {"role": "user", "content": "Tell me a joke"}
+    ]
+  }'
 
+# Streaming chat completion
+curl -X POST http://localhost:8337/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "persona-default",
+    "messages": [
+      {"role": "user", "content": "Explain quantum entanglement in simple terms"}
+    ],
+    "stream": true
+  }'
 ```
+
+#### Embeddings
+
+```bash
+# Create embeddings
+curl -X POST http://localhost:8337/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "The quick brown fox jumps over the lazy dog"
+  }'
+```
+
+#### Files API
+
+```bash
+# Upload a file
+curl -X POST http://localhost:8337/v1/files \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@./my_document.txt;type=text/plain" \
+  -F "purpose=assistants"
+
+# List files
+curl http://localhost:8337/v1/files
+
+# Retrieve file metadata
+curl http://localhost:8337/v1/files/file_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Retrieve file content
+curl http://localhost:8337/v1/files/file_xxxxxxxxxxxxxxxxxxxxxxxx/content
+
+# Delete a file
+curl -X DELETE http://localhost:8337/v1/files/file_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+#### Vector Stores API
+
+```bash
+# Create a vector store
+curl -X POST http://localhost:8337/v1/vector_stores \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Knowledge Base",
+    "metadata": {"project": "persona-server"}
+  }'
+
+# List vector stores
+curl http://localhost:8337/v1/vector_stores
+
+# Retrieve a vector store
+curl http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Attach a file to a vector store (this triggers chunking and embedding)
+curl -X POST http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx/files \
+  -H "Content-Type: application/json" \
+  -d '{
+    "file_id": "file_yyyyyyyyyyyyyyyyyyyyyyyy"
+  }'
+
+# List files in a vector store
+curl http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx/files
+
+# Search a vector store
+curl -X POST http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What are the key features of the Persona Server?",
+    "max_num_results": 3
+  }'
+
+# Delete a file from a vector store
+curl -X DELETE http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx/files/file_yyyyyyyyyyyyyyyyyyyyyyyy
+
+# Delete a vector store
+curl -X DELETE http://localhost:8337/v1/vector_stores/vs_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+-----
+
+## 🛠️ Configuration
+
+The Persona Server's behavior can be configured through environment variables or by passing arguments to the `ovos-persona-server` command. Key settings include:
+
+  * `--persona` or `PERSONA_PATH`: Path to your persona JSON file.
+  * `TEXT_EMBEDDINGS_PLUGIN`: The text embedding plugin to use (e.g., `ovos-gguf-embeddings-plugin`).
+  * `EMBEDDINGS_DB_PLUGIN`: The vector database plugin (e.g., `ovos-qdrant-embeddings-plugin`).
+  * `FILE_STORAGE_PATH`: Directory for storing uploaded files and metadata (defaults to `~/.cache/ovos-persona-server`).
+  * `FILE_STORAGE_STRATEGY`: How to store file content (`disk`, `database`, `both`).
+
+-----
+
+## 🤝 Contributing
+
+We welcome contributions to the OVOS Persona Server\! If you have ideas for new features, bug fixes, or improvements, please feel free to:
+
+  * Open an issue to discuss your ideas or report bugs.
+  * Submit a pull request with your changes.
+
+-----
+
+## 📄 License
+
+This project is licensed under the [Apache-2.0 License](LICENSE).

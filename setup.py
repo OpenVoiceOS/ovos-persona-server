@@ -45,14 +45,14 @@ def required(requirements_file):
 setup(
     name='ovos-persona-server',
     version=get_version(),
-    description='simple flask server to host OpenVoiceOS persona plugins as a service',
+    description='simple FastAPI to host OpenVoiceOS persona plugins as a service',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/OpenVoiceOS/ovos-persona-server',
     author='JarbasAi',
     author_email='jarbasai@mailfence.com',
     license='Apache-2.0',
-    packages=['ovos_persona_server'],
+    packages=['ovos_persona_server', 'ovos_persona_server.schemas'],
     install_requires=required("requirements.txt"),
     zip_safe=True,
     classifiers=[
@@ -60,15 +60,10 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Text Processing :: Linguistic',
         'License :: OSI Approved :: Apache Software License',
-
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
-    keywords='plugin lang detect translate OVOS OpenVoiceOS',
+    keywords='plugin LLM persona OVOS OpenVoiceOS',
     entry_points={
         'console_scripts': [
             'ovos-persona-server=ovos_persona_server.__main__:main'
