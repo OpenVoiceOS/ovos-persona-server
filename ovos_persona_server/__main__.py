@@ -22,9 +22,10 @@ def main() -> None:
     parser.add_argument("--persona", help="Path to persona .json file", default=None, type=str)
     parser.add_argument("--host", help="Host address to bind to", default="0.0.0.0", type=str)
     parser.add_argument("--port", help="Port to run server on", default=8337, type=int)
+    parser.add_argument("--enable-a2a", help="Flag to enable agent-to-agent protocol (A2A)", action='store_true')
     args: Any = parser.parse_args()  # Using Any for args as argparse.Namespace is dynamic
 
-    app = create_persona_app(args.persona, args.host, args.port)
+    app = create_persona_app(args.persona, args.host, args.port, args.enable_a2a)
 
     uvicorn.run(app, port=args.port, host=args.host, log_level="debug")
 
