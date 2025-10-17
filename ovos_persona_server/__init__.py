@@ -36,6 +36,7 @@ def create_persona_app(persona_path: str, host: str, port: int, enable_a2a: bool
         persona["name"] = persona.get("name") or os.path.basename(persona_path)
 
     # TODO - move to dependency injection
+    # see https://github.com/OpenVoiceOS/ovos-persona-server/pull/11
     ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
 
     from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR

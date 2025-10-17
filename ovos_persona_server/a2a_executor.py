@@ -26,6 +26,7 @@ class PersonaAgentExecutor(AgentExecutor):
             event_queue: EventQueue,
     ) -> None:
         query: str = context.get_user_input()
+        # TODO - placeholder
         result = self.persona.chat([{"role": "user", "content": query}])
         await event_queue.enqueue_event(new_agent_text_message(result))
 
@@ -51,7 +52,7 @@ def get_a2a_app(persona: Persona, version: str, url: str) -> FastAPI:
         version=version or '0.0.0',
         default_input_modes=['text'],
         default_output_modes=['text'],
-        capabilities=AgentCapabilities(streaming=True),
+        capabilities=AgentCapabilities(streaming=True), # TODO - ensure streaming supported
         skills=[skill],
         supports_authenticated_extended_card=False
     )
