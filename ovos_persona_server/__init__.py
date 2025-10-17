@@ -17,7 +17,7 @@ from ovos_persona import Persona
 import ovos_persona_server.persona
 
 
-def create_persona_app(persona_path: str) -> FastAPI:
+def create_persona_app(persona_path: str, host: str, port: int, enable_a2a: bool = True) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
@@ -43,9 +43,14 @@ def create_persona_app(persona_path: str) -> FastAPI:
     if VERSION_ALPHA:
         version_str += f"a{VERSION_ALPHA}"
 
-    app = FastAPI(title="OVOS Persona Server",
-                  description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
-                  version=version_str)
+    if enable_a2a:
+        from ovos_persona_server.a2a_executor import get_a2a_app
+        # TODO - find external ip address
+        app = get_a2a_app(persona, version_str, f'http://{host}:{port}')
+    else:
+        app = FastAPI(title="OVOS Persona Server",
+                      description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
+                      version=version_str)
 
     app.add_middleware(
         CORSMiddleware,

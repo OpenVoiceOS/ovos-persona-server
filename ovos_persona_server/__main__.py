@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument("--port", help="Port to run server on", default=8337, type=int)
     args: Any = parser.parse_args()  # Using Any for args as argparse.Namespace is dynamic
 
-    app = create_persona_app(args.persona)
+    app = create_persona_app(args.persona, args.host, args.port)
 
     uvicorn.run(app, port=args.port, host=args.host, log_level="debug")
 
