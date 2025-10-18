@@ -51,7 +51,7 @@ def create_persona_app(persona_path: str, host: str, port: int, enable_a2a: bool
         app = get_a2a_app(persona, version_str, f'http://{host}:{port}')
         LOG.info("Enabled A2A endpoints")
     else:
-        app = FastAPI(title="OVOS Persona Server",
+        app = FastAPI(title="OpenVoiceOS Persona Server",
                       description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
                       version=version_str)
 
