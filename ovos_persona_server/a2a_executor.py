@@ -117,4 +117,8 @@ def get_a2a_app(persona: Persona, version: str, url: str) -> FastAPI:
         http_handler=request_handler
     )
 
-    return server.build()
+    app = server.build()
+    app.title = "OVOS Persona Server"
+    app.description = "A2A/OpenAI/Ollama compatible API for OVOS Personas and Solvers"
+
+    return app
