@@ -264,8 +264,8 @@ async def stats(persona: Persona = Depends(get_default_persona),
     Returns:
         Status: An object containing the persona's name, loaded solvers, and models.
     """
-    version = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_MINOR}a{VERSION_ALPHA}" \
-        if VERSION_ALPHA else f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_MINOR}"
+    version = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}a{VERSION_ALPHA}" \
+        if VERSION_ALPHA else f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
     models = {s: persona.config.get(s, {}).get("model")
               for s in persona.solvers.loaded_modules.keys()}
     if reranker.config.get("model"):
