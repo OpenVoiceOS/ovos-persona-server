@@ -39,8 +39,11 @@ _vector_db_instance: Optional[EmbeddingsDB] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manages the lifespan of the FastAPI application, initializing the global vector database
-    and text embedder instances.
+    Initialize the shared text embedder and embeddings database at application startup.
+    
+    This lifespan handler ensures a global TextEmbedder is created and the shared EmbeddingsDB
+    instance is initialized before the application begins serving requests; it yields control
+    to the application for the normal lifespan and performs no explicit shutdown actions.
     """
     embedder = await get_text_embeddings()
     await get_vector_db(embedder)
@@ -52,18 +55,39 @@ vector_stores_router = APIRouter(prefix="/v1/vector_stores", tags=["vector_store
 
 
 def _generate_id(prefix: str) -> str:
-    """Generates a unique ID with a given prefix."""
+    """
+    Create a unique identifier string by concatenating the given prefix, an underscore, and 24 random alphanumeric characters.
+    
+    Parameters:
+    	prefix (str): The text to prepend to the generated identifier.
+    
+    Returns:
+    	unique_id (str): The generated identifier in the form "<prefix>_<24-alphanumeric-chars>".
+    """
     return f"{prefix}_{''.join(random.choices(string.ascii_letters + string.digits, k=24))}"
 
 
 def _get_current_timestamp() -> int:
-    """Returns the current Unix timestamp."""
+    """
+    Get the current Unix timestamp.
+    
+    Returns:
+        Current Unix timestamp as an integer number of seconds since the Unix epoch.
+    """
     return int(time.time())
 
 
 async def get_vector_db(embedder: TextEmbedder = Depends(get_text_embeddings)) -> EmbeddingsDB:
     """
-    FastAPI dependency that provides the initialized EmbeddingsDB instance.
+    Provide a shared EmbeddingsDB instance for FastAPI dependencies, initializing it on first use.
+    
+    Initial initialization determines the vector size from a test embedding produced by the configured text embedder and loads the configured EmbeddingsDB plugin with the resolved configuration.
+    
+    Returns:
+        EmbeddingsDB: The initialized EmbeddingsDB instance reused for the application's lifetime.
+    
+    Raises:
+        HTTPException: with status 500 if the text embedder fails to produce a test embedding used to determine vector size.
     """
     global _vector_db_instance
     if _vector_db_instance is None:
@@ -84,7 +108,18 @@ async def get_vector_db(embedder: TextEmbedder = Depends(get_text_embeddings)) -
 # --- Helper Functions ---
 
 async def _get_vector_store_orm_or_404(vector_store_id: str, db: AsyncSession) -> VectorStoreORM:
-    """Retrieve a vector store ORM object from DB or raise HTTPException 404."""
+    """
+    Retrieve the VectorStoreORM with the given id or raise an HTTP 404 if not found.
+    
+    Parameters:
+        vector_store_id (str): The id of the vector store to fetch.
+    
+    Returns:
+        VectorStoreORM: The matching ORM instance.
+    
+    Raises:
+        HTTPException: with status 404 if no vector store matches the given id.
+    """
     result = await db.execute(select(VectorStoreORM).where(VectorStoreORM.id == vector_store_id))
     store_orm = result.scalars().first()
     if not store_orm:
@@ -94,7 +129,14 @@ async def _get_vector_store_orm_or_404(vector_store_id: str, db: AsyncSession) -
 
 async def _get_vector_store_object_with_counts(vector_store_orm: VectorStoreORM, db: AsyncSession) -> VectorStoreObject:
     """
-    Helper to construct VectorStoreObject with dynamic file counts and usage bytes.
+    Builds a VectorStoreObject enriched with file status counts and total usage bytes.
+    
+    Parameters:
+        vector_store_orm (VectorStoreORM): The VectorStore ORM instance to convert into a VectorStoreObject.
+    
+    Returns:
+        VectorStoreObject: The vector store representation including `file_counts` (counts per file status and total)
+        and `usage_bytes` (sum of usage_bytes for all files in the vector store).
     """
     # Fetch file counts
     file_counts_query = select(
@@ -124,8 +166,15 @@ async def _get_vector_store_object_with_counts(vector_store_orm: VectorStoreORM,
 
 def _chunk_text(text: str, max_chunk_size: int, chunk_overlap: int) -> List[str]:
     """
-    Simple text chunking based on character count.
-    NOTE: This is a basic substitute for token-based chunking.
+    Split text into character-based chunks with a fixed overlap.
+    
+    Parameters:
+        text (str): Input text to split.
+        max_chunk_size (int): Maximum number of characters per chunk.
+        chunk_overlap (int): Number of characters to overlap between consecutive chunks.
+    
+    Returns:
+        List[str]: Ordered list of text chunks (the final chunk may be shorter than `max_chunk_size`).
     """
     if not text:
         return []
@@ -149,8 +198,19 @@ async def create_vector_store(
         db_embeddings: EmbeddingsDB = Depends(get_vector_db)
 ) -> VectorStoreObject:
     """
-    Create a new vector store.
-    """
+        Create a new vector store and its backing collection, persist its metadata, and return the created object with counts.
+        
+        Creates a collection in the embeddings backend, computes and stores expiration fields from the request, and inserts a VectorStore row in the metadata database. If inserting metadata fails, the created collection is deleted to avoid orphaned vector data.
+        
+        Parameters:
+            request (CreateVectorStoreRequest): Request payload containing the vector store name, optional metadata, and optional expiration settings.
+        
+        Returns:
+            VectorStoreObject: The created vector store representation including dynamic file counts and usage information.
+        
+        Raises:
+            HTTPException: If creating the collection in the embeddings backend fails or if persisting metadata to the database fails.
+        """
     vs_id = _generate_id("vs")
     created_at = _get_current_timestamp()
 
@@ -210,8 +270,23 @@ async def list_vector_stores(
         before: Optional[str] = None
 ) -> ListVectorStoresResponse:
     """
-    List all vector stores.
-    """
+        Return a paginated list of vector stores including per-store counts and pagination metadata.
+        
+        Performs an ordered query of all vector stores, converts each to a VectorStoreObject with dynamic counts, and applies Python-based pagination using optional cursor markers.
+        
+        Parameters:
+            limit (int): Maximum number of items to return (1–100).
+            order (str): Sort order by `created_at`; must be "asc" or "desc".
+            after (Optional[str]): Exclusive cursor id; results start after this id if present.
+            before (Optional[str]): Exclusive cursor id; results end before this id if present.
+        
+        Returns:
+            ListVectorStoresResponse: An object with:
+                - `data`: list of VectorStoreObject entries for the current page,
+                - `first_id`: id of the first item in `data` or `null` if empty,
+                - `last_id`: id of the last item in `data` or `null` if empty,
+                - `has_more`: `true` if more results exist beyond the returned page, `false` otherwise.
+        """
     query = select(VectorStoreORM)
 
     # Apply ordering
@@ -269,8 +344,11 @@ async def retrieve_vector_store(
         db: AsyncSession = Depends(get_async_db)
 ) -> VectorStoreObject:
     """
-    Retrieve a specific vector store by its ID.
-    """
+        Retrieve the vector store identified by `vector_store_id`.
+        
+        Returns:
+            VectorStoreObject: The vector store representation including dynamic file counts and usage bytes.
+        """
     vector_store_orm = await _get_vector_store_orm_or_404(vector_store_id, db)
     return await _get_vector_store_object_with_counts(vector_store_orm, db)
 
@@ -282,8 +360,17 @@ async def modify_vector_store(
         db: AsyncSession = Depends(get_async_db)
 ) -> VectorStoreObject:
     """
-    Modify an existing vector store.
-    """
+        Update fields of an existing vector store.
+        
+        Applies provided updates (name, metadata, and expires_after) to the stored vector store record, persists changes, refreshes the ORM, and returns the updated VectorStoreObject including dynamic file counts.
+        
+        Returns:
+            VectorStoreObject: The updated vector store representation with current file counts and usage.
+        
+        Raises:
+            HTTPException: 400 if the request contains no fields to update.
+            HTTPException: 404 if the specified vector store does not exist.
+        """
     vector_store_orm = await _get_vector_store_orm_or_404(vector_store_id, db)
 
     update_data = request.model_dump(exclude_unset=True)
@@ -323,8 +410,14 @@ async def delete_vector_store(
         db_embeddings: EmbeddingsDB = Depends(get_vector_db)
 ) -> VectorStoreDeleted:
     """
-    Delete a vector store.
-    """
+        Delete a vector store from both the embeddings backend and the metadata database.
+        
+        Raises:
+            HTTPException: If the vector store does not exist or if deletion of the collection from the vector DB fails.
+        
+        Returns:
+            VectorStoreDeleted: Object containing the deleted vector store id and confirmation flag.
+        """
     vector_store_orm = await _get_vector_store_orm_or_404(vector_store_id, db)
 
     # Delete from vector DB
@@ -352,10 +445,20 @@ async def create_vector_store_file(
         embedder: TextEmbedder = Depends(get_text_embeddings)
 ) -> VectorStoreFileObject:
     """
-    Create a vector store file. This chunks and embeds the file content,
-    adding it to the vector store.
-    Prevents adding the same file to the same vector store more than once.
-    """
+        Associate a file with a vector store by chunking its UTF-8 text content, embedding each chunk, storing chunk metadata and embeddings, and returning the created vector store file record.
+        
+        If the file is already associated with the vector store this function returns the existing record (idempotent).
+        
+        Parameters:
+            vector_store_id (str): Identifier of the target vector store collection.
+            request (CreateVectorStoreFileRequest): Request payload containing the file_id and optional chunking strategy.
+        
+        Returns:
+            VectorStoreFileObject: The created or existing vector store file object with final status and metadata.
+        
+        Raises:
+            HTTPException: 404 if the file metadata or content is not found; 400 if the file content is not valid UTF-8 text; 500 for internal processing or embedding failures.
+        """
     await _get_vector_store_orm_or_404(vector_store_id, db)
 
     # 1. Check if this file is already associated with this vector store
@@ -495,7 +598,12 @@ async def list_vector_store_files(
         after: Optional[str] = None,
         before: Optional[str] = None
 ) -> ListVectorStoreFilesResponse:
-    """List files associated with a vector store."""
+    """
+        List files for the specified vector store.
+        
+        Returns:
+            ListVectorStoreFilesResponse: Response containing the list of VectorStoreFileObject items and pagination metadata (`first_id`, `last_id`, `has_more`).
+        """
     await _get_vector_store_orm_or_404(vector_store_id, db)
 
     query = select(VectorStoreFileORM).where(VectorStoreFileORM.vector_store_id == vector_store_id)
@@ -553,7 +661,16 @@ async def retrieve_vector_store_file(
         file_id: str,
         db: AsyncSession = Depends(get_async_db)
 ) -> VectorStoreFileObject:
-    """Retrieve a specific file from a vector store."""
+    """
+        Retrieve a file record from a vector store by its file ID.
+        
+        Parameters:
+            vector_store_id (str): ID of the vector store.
+            file_id (str): ID of the file within the vector store.
+        
+        Returns:
+            VectorStoreFileObject: The file object representing the stored file.
+        """
     await _get_vector_store_orm_or_404(vector_store_id, db)
 
     result = await db.execute(
@@ -577,10 +694,17 @@ async def delete_vector_store_file(
         db_embeddings: EmbeddingsDB = Depends(get_vector_db)
 ) -> VectorStoreFileDeleted:
     """
-    Delete a file from a vector store.
-    This also deletes associated chunk embeddings from the vector DB
-    and chunk metadata from the local DB.
-    """
+        Remove a file and its associated embeddings and chunk metadata from a vector store.
+        
+        Deletes chunk embeddings from the external vector database, removes chunk metadata rows, and deletes the VectorStoreFile record from the local metadata database.
+        
+        Returns:
+            VectorStoreFileDeleted: Object containing the deleted file id, object type, and `deleted=True`.
+        
+        Raises:
+            HTTPException: With status 404 if the specified vector store file does not exist.
+            HTTPException: With status 500 if deletion of embeddings or database records fails.
+        """
     result = await db.execute(
         select(VectorStoreFileORM).where(
             VectorStoreFileORM.vector_store_id == vector_store_id,
@@ -635,8 +759,16 @@ async def search_vector_store(
         embedder: TextEmbedder = Depends(get_text_embeddings)
 ) -> VectorStoreSearchResponse:
     """
-    Search a vector store for relevant chunks.
-    """
+        Search a vector store for the most relevant stored chunks matching the provided query.
+        
+        Embeds the supplied query, queries the embeddings database for the top matches in the specified collection, and returns those matches as `SearchResultChunk` items. This implementation includes metadata returned from the embeddings backend and sets `has_more` to `False`.
+        
+        Returns:
+            VectorStoreSearchResponse: Response object containing a list of matching `SearchResultChunk` entries and `has_more` (always `False` for this implementation).
+        
+        Raises:
+            HTTPException: If the vector store does not exist (404) or if the search or embedding operations fail (500).
+        """
     await _get_vector_store_orm_or_404(vector_store_id, db)
 
     try:

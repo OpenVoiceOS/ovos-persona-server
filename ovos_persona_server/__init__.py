@@ -28,7 +28,12 @@ from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BU
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
+    Initialize the unified SQLite database before the application starts; no shutdown actions are performed.
+    
+    This async lifespan context manager calls init_db() prior to yielding control to the FastAPI application so startup-dependent resources are ready. It yields once to allow the app to run and performs no explicit cleanup on shutdown.
+    
+    Returns:
+        None: yielded once to signal startup completion.
     """
     await init_db() # Call init_db from database.py
     yield

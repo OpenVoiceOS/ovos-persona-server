@@ -139,11 +139,15 @@ class Settings:
     @property
     def persona_config(self) -> Dict[str, Any]:
         """
-        Loads and returns the persona configuration from the specified JSON file,
-        or constructs a default configuration if no persona file is provided.
-
+        Provide persona configuration loaded from a JSON file or construct a default persona from the current settings.
+        
+        If a persona file path is configured on the instance, the JSON content of that file is returned. Otherwise a default dictionary is returned with keys:
+        - "name": the LLM persona name,
+        - "solvers": a list containing the configured LLM solver,
+        - "<solver_name>": a mapping with "api_url", "key", "model", and "system_prompt" populated from corresponding LLM or OpenAI-compatible settings.
+        
         Returns:
-            Dict[str, Any]: A dictionary containing the persona configuration.
+            dict: Persona configuration dictionary.
         """
         if self.persona:
             with open(self.persona, "r", encoding="utf-8") as f:
@@ -164,11 +168,10 @@ class Settings:
     @property
     def reranker_config(self) -> Dict[str, Any]:
         """
-        Returns a dictionary of reranker configuration parameters
-        suitable for passing to reranker plugin constructors.
-
+        Provide configuration for the reranker plugin.
+        
         Returns:
-            Dict[str, Any]: A dictionary containing reranker configuration.
+            Dict[str, Any]: Mapping with key "model" set to the configured reranker model name.
         """
         return {
             "model": self.reranker_model
@@ -177,11 +180,16 @@ class Settings:
     @property
     def summarizer_config(self) -> Dict[str, Any]:
         """
-        Returns a dictionary of summarizer configuration parameters
-        suitable for passing to summarizer plugin constructors.
-
+        Builds a summarizer plugin configuration from the Settings fields or returns an empty configuration for unsupported plugins.
+        
+        When the configured plugin is "ovos-summarizer-openai-plugin", the returned mapping contains the keys:
+        - "key": the plugin API key (uses summarizer_key or falls back to openai_key),
+        - "api_url": the plugin API URL (uses summarizer_url or falls back to openai_url),
+        - "model": the model name (uses summarizer_model or falls back to openai_model),
+        - "system_prompt": the system prompt to use (uses summarizer_prompt or a built-in default).
+        
         Returns:
-            Dict[str, Any]: A dictionary containing summarizer configuration.
+            Dict[str, Any]: A summarizer configuration dict with the keys described above for supported plugins, or an empty dict for unsupported plugins.
         """
         # assume ovos-summarizer-openai-plugin compatible summarizer plugin
         if self.summarizer_plugin == "ovos-summarizer-openai-plugin":
@@ -202,11 +210,12 @@ Focus on the most important information.
     @property
     def embeddings_config(self) -> Dict[str, Any]:
         """
-        Returns a dictionary of embedding configuration parameters
-        suitable for passing to embedding plugin constructors.
-
+        Builds a configuration dictionary for the selected embeddings plugin.
+        
+        If `text_embeddings_plugin` is "ovos-gguf-embeddings-plugin", returns a config with `n_gpu_layers` (int) and `verbose` (bool). For other plugins, returns `key`, `api_url`, and `model`, each taken from the embeddings-specific setting if present or falling back to the OpenAI-compatible settings.
+        
         Returns:
-            Dict[str, Any]: A dictionary containing embedding configuration.
+            Dict[str, Any]: Plugin-ready embeddings configuration.
         """
         # assume either openai or ovos-gguf-embeddings-plugin compatible plugin
         if self.text_embeddings_plugin == "ovos-gguf-embeddings-plugin":
@@ -223,11 +232,12 @@ Focus on the most important information.
     @property
     def embeddings_db_config(self) -> Dict[str, Any]:
         """
-        Returns a dictionary of embeddings database configuration parameters.
-        Currently, this primarily includes the 'path' for ChromaDB.
-
+        Return embeddings database configuration used by embeddings storage.
+        
+        The mapping contains a "path" key pointing to the embeddings database directory under the configured file_storage_path.
+        
         Returns:
-            Dict[str, Any]: A dictionary containing embeddings database configuration.
+            Dict[str, Any]: Dictionary with configuration for the embeddings database; includes `'path'` (str).
         """
         config: Dict[str, Any] = {}
         # For most dbs the primary config is the path
@@ -237,8 +247,12 @@ Focus on the most important information.
 
     def __post_init__(self) -> None:
         """
-        Post-initialization hook to set default LLM persona parameters
-        from environment variables if no persona file is explicitly set.
+        Populate LLM persona-related attributes from environment variables when no persona file is provided.
+        
+        If `persona` is empty, set `llm_name`, `llm_solver`, `llm_url`, `llm_model`, `llm_key`, and `llm_system_prompt`
+        from corresponding environment variables (PERSONA_NAME, SOLVER_PLUGIN, LLM_URL, LLM_MODEL, LLM_KEY,
+        LLM_SYSTEM_PROMPT) or sensible defaults ("OpenVoiceOS", "ovos-solver-openai-plugin", the module's
+        OpenAI-compatible defaults, and "you are a voice assistant").
         """
         if not self.persona:
             self.llm_name = self.llm_name or os.environ.get('PERSONA_NAME', "OpenVoiceOS")

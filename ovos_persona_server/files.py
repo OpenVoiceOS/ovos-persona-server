@@ -29,8 +29,7 @@ from ovos_persona_server.schemas.openai_files import FileObject, FileListRespons
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manages the lifespan of the FastAPI application.
-    Database initialization is now handled globally by init_db in database.py.
+    Provide a minimal lifespan context for the FastAPI router; performs no startup or shutdown actions.
     """
     yield
     # No specific shutdown logic needed for these dependencies currently
@@ -42,7 +41,10 @@ files_router = APIRouter(prefix="/v1/files", tags=["files"], lifespan=lifespan)
 # Dependency to get a database session
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    Dependency that provides an asynchronous SQLAlchemy database session.
+    Provide an asynchronous SQLAlchemy session for use as a FastAPI dependency.
+    
+    Returns:
+        AsyncSession: An asynchronous SQLAlchemy session yielded to the dependency consumer.
     """
     async for session in get_async_db():
         yield session
@@ -50,30 +52,35 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 def _generate_id(prefix: str = "") -> str:
     """
-    Generates a unique ID for API objects.
-
-    Args:
-        prefix (str): A prefix for the ID (e.g., "file_").
-
+    Generate a short, unique identifier with an optional prefix.
+    
+    Parameters:
+        prefix (str): Optional string to prepend to the identifier (e.g., "file_").
+    
     Returns:
-        str: A unique ID string.
+        str: The prefix followed by 24 random alphanumeric characters.
     """
     return f"{prefix}{''.join(random.choices(string.ascii_letters + string.digits, k=24))}"
 
 
 def _get_current_timestamp() -> int:
     """
-    Returns the current Unix timestamp.
-
+    Get the current Unix timestamp.
+    
     Returns:
-        int: The current Unix timestamp.
+        int: Current Unix timestamp in seconds since the Unix epoch.
     """
     return int(time.time())
 
 
 def _get_file_storage_dir() -> str:
     """
-    Ensures the file storage directory exists and returns its absolute path.
+    Ensure the configured file storage directory exists and return its absolute path.
+    
+    The directory will be created if it does not already exist.
+    
+    Returns:
+        str: Absolute path to the file storage directory.
     """
     storage_dir = os.path.abspath(settings.file_storage_path)
     os.makedirs(storage_dir, exist_ok=True)
@@ -90,20 +97,20 @@ async def upload_file(
         db: AsyncSession = Depends(get_db)
 ) -> FileObject:
     """
-    Upload a file that can be used across various API endpoints.
-    Checks for duplicate file content based on hash and purpose.
-
-    Args:
-        file (UploadFile): The file to upload.
-        purpose (FilePurpose): The intended purpose of the file (e.g., 'assistants').
-        db (AsyncSession): The SQLAlchemy asynchronous session, injected via dependency.
-
-    Returns:
-        FileObject: The newly created or existing file object if a duplicate is found.
-
-    Raises:
-        HTTPException: If the purpose is invalid or file processing fails.
-    """
+        Upload a file, store its content and metadata according to the configured storage strategy, and return the stored FileObject.
+        
+        The endpoint detects duplicates by computing a SHA-256 hash of the file contents combined with the provided purpose; if a matching file already exists it returns the existing FileObject instead of creating a new record.
+        
+        Parameters:
+            file (UploadFile): The uploaded file.
+            purpose (FilePurpose): Intended purpose of the file; currently only the `assistants` purpose is supported and is stored as its enum value.
+        
+        Returns:
+            FileObject: The created or existing file metadata and identifiers.
+        
+        Raises:
+            HTTPException: If file processing, storage, or database persistence fails.
+        """
     content_bytes: bytes = await file.read()
     file_size: int = len(content_bytes)
     content_hash: str = hashlib.sha256(content_bytes).hexdigest() # Calculate SHA256 hash
@@ -175,19 +182,18 @@ async def list_files(
         db: AsyncSession = Depends(get_db)
 ) -> FileListResponse:
     """
-    Returns a list of files that belong to the user's organization.
-
-    Args:
-        purpose (Optional[FilePurpose]): Filter files by their purpose.
-        limit (int): A limit on the number of objects to be returned.
-        order (str): Sort order for the results. Can be 'asc' or 'desc'.
-        after (Optional[str]): A cursor for use in pagination.
-        before (Optional[str]): A cursor for use in pagination.
-        db (AsyncSession): The SQLAlchemy asynchronous session, injected via dependency.
-
-    Returns:
-        FileListResponse: A list of file objects.
-    """
+        List files visible to the caller, optionally filtered by purpose, sorted, and cursor-paginated.
+        
+        Pagination is applied in memory: `after` and `before` are file ID cursors used to slice the sorted result set, and `limit` bounds the number of returned items (1–100). `order` controls sorting by creation time and accepts "asc" or "desc".
+        
+        Parameters:
+            after (Optional[str]): ID of the file to start after (exclusive) when paginating.
+            before (Optional[str]): ID of the file to end before (exclusive) when paginating.
+            order (str): Sort order for results; either "asc" or "desc".
+        
+        Returns:
+            FileListResponse: Contains the list of FileObject items in `data`, plus `first_id`, `last_id`, and `has_more` pagination metadata.
+        """
     query = select(FileORM)
     if purpose:
         query = query.where(FileORM.purpose == purpose.value)
@@ -237,17 +243,16 @@ async def list_files(
 @files_router.get("/{file_id}", response_model=FileObject, status_code=status.HTTP_200_OK)
 async def retrieve_file(file_id: str, db: AsyncSession = Depends(get_db)) -> FileObject:
     """
-    Returns information about a specific file.
-
-    Args:
+    Retrieve metadata for a file by its ID.
+    
+    Parameters:
         file_id (str): The ID of the file to retrieve.
-        db (AsyncSession): The SQLAlchemy asynchronous session, injected via dependency.
-
+    
     Returns:
-        FileObject: The retrieved file object.
-
+        FileObject: The file's metadata and attributes.
+    
     Raises:
-        HTTPException: If the file is not found.
+        HTTPException: If no file with the given ID exists (404).
     """
     result = await db.execute(select(FileORM).where(FileORM.id == file_id))
     file_orm = result.scalars().first()
@@ -260,17 +265,15 @@ async def retrieve_file(file_id: str, db: AsyncSession = Depends(get_db)) -> Fil
 @files_router.delete("/{file_id}", response_model=DeleteFileResponse, status_code=status.HTTP_200_OK)
 async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)) -> DeleteFileResponse:
     """
-    Delete a file.
-
-    Args:
-        file_id (str): The ID of the file to delete.
-        db (AsyncSession): The SQLAlchemy asynchronous session, injected via dependency.
-
+    Delete a file by its ID and remove any stored content.
+    
+    If the file is stored on disk and the configured storage strategy allows it, the on-disk file is removed after the database record is deleted.
+    
     Returns:
-        DeleteFileResponse: A confirmation response.
-
+        DeleteFileResponse: Confirmation containing the deleted file ID, object type 'file.deleted', and deleted=True.
+    
     Raises:
-        HTTPException: If the file is not found.
+        HTTPException: If the file is not found (status 404) or if deleting the on-disk file fails (status 500).
     """
     # First, retrieve the file to get its local_path and confirm existence
     result = await db.execute(select(FileORM).where(FileORM.id == file_id))
@@ -298,17 +301,16 @@ async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)) -> Delet
 @files_router.get("/{file_id}/content", status_code=status.HTTP_200_OK)
 async def retrieve_file_content(file_id: str, db: AsyncSession = Depends(get_db)) -> Response:
     """
-    Returns the contents of the specified file.
-
-    Args:
-        file_id (str): The ID of the file to retrieve content for.
-        db (AsyncSession): The SQLAlchemy asynchronous session, injected via dependency.
-
+    Retrieve the raw content of a stored file and return it with an appropriate media type.
+    
+    Parameters:
+        file_id (str): Identifier of the file to fetch.
+    
     Returns:
-        Response: The content of the file.
-
+        response (Response): An HTTP response whose body is the file's raw bytes and whose media type is inferred from the filename (defaults to "application/octet-stream").
+    
     Raises:
-        HTTPException: If the file is not found or content is missing.
+        HTTPException: If the file does not exist (404), if the content is not available under the current storage strategy (404), or if reading the content fails (500).
     """
     result = await db.execute(
         select(FileORM.local_path, FileORM.filename, FileORM.purpose, FileORM.content_data).where(FileORM.id == file_id))

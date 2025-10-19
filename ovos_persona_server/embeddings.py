@@ -20,7 +20,9 @@ from ovos_persona_server.schemas.openai_embeddings import CreateEmbeddingRespons
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manages the lifespan of the FastAPI application, ensuring text embeddings are loaded.
+    Ensure text embeddings are loaded on application startup and yield control for request handling.
+    
+    This lifespan context manager loads the configured text embeddings plugin before the app starts serving requests and then yields to allow normal operation; no shutdown actions are performed.
     """
     await get_text_embeddings()
     # await get_image_embeddings() # Uncomment if image embeddings are to be used
@@ -37,16 +39,15 @@ image_embeddings: Optional[ImageEmbedder] = None
 
 async def get_text_embeddings() -> TextEmbedder:
     """
-    Asynchronously loads and returns the configured text embeddings plugin.
-
-    This function acts as a dependency for FastAPI endpoints, ensuring
-    the text embedder is loaded once and reused across requests.
-
+    Load and return the configured text embeddings plugin, caching it for reuse.
+    
+    Acts as a FastAPI dependency that ensures a single TextEmbedder instance is loaded and reused across requests.
+    
     Returns:
         TextEmbedder: The loaded OVOS TextEmbedder instance.
-
+    
     Raises:
-        HTTPException: If the text embeddings plugin fails to load.
+        HTTPException: If the text embeddings plugin fails to load or cannot be instantiated.
     """
     global text_embeddings
     if text_embeddings is None:
@@ -61,15 +62,10 @@ async def get_text_embeddings() -> TextEmbedder:
 
 async def get_image_embeddings() -> Optional[ImageEmbedder]:
     """
-    Asynchronously loads and returns the configured image embeddings plugin.
-
-    NOTE: This is currently a placeholder and does not load a real image embedder.
-
+    Return the configured image embeddings plugin, if available.
+    
     Returns:
-        Optional[ImageEmbedder]: A placeholder OVOS ImageEmbedder instance, or None if not implemented.
-
-    Raises:
-        HTTPException: If the image embeddings plugin fails to load (currently not implemented).
+        Optional[ImageEmbedder]: The loaded ImageEmbedder instance, or `None` if no image embedder is configured or the feature is not implemented.
     """
     global image_embeddings
     # TODO: placeholder - implement real image embeddings when ready
@@ -84,19 +80,18 @@ async def create_embeddings(
         embedder: TextEmbedder = Depends(get_text_embeddings)
 ) -> JSONResponse:
     """
-    Generates embeddings for the given text input(s).
-
-    Args:
-        request_body (CreateEmbeddingRequest): The request body containing
-                                                the input text(s) and model.
-        embedder (TextEmbedder): The text embedder instance, injected by FastAPI's dependency.
-
-    Returns:
-        JSONResponse: A JSON response containing the generated embeddings and usage information.
-
-    Raises:
-        HTTPException: If the input format is invalid or embedding generation fails.
-    """
+        Generate embeddings for the provided text input(s) and return an OpenAI-compatible response payload.
+        
+        Parameters:
+            request_body (CreateEmbeddingRequest): Request containing `input` (a string or list of strings) and optional `encoding_format`. `input` must be a string or an array of strings; other formats will trigger a 400 error. `encoding_format="base64"` is not supported and will trigger a 500 error.
+        
+        Returns:
+            JSONResponse: A JSON payload with fields `object`, `data` (list of embeddings with index and vector), `model`, and `usage` (prompt_tokens and total_tokens).
+        
+        Raises:
+            HTTPException: 400 if `input` is not a string or list of strings;
+                           500 if embedding generation fails or if an unsupported encoding_format (e.g., "base64") is requested.
+        """
     # The Pydantic model handles the validation of `request_body.input` type
     # It can be str, List[str], List[int], or List[List[int]]
     texts_to_embed: List[str] = []

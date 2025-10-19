@@ -32,14 +32,9 @@ from ovos_persona_server.version import VERSION_ALPHA, VERSION_MINOR, VERSION_MA
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Manages the lifespan of the FastAPI application.
-
-    This context manager ensures that the default persona and necessary
-    components are loaded when the application starts and cleans up
-    when it shuts down.
-
-    Yields:
-        None: Control is yielded to the FastAPI application.
+    Preloads and initializes shared Persona, splitters, and solver plugins for the application lifecycle.
+    
+    This lifespan context manager initializes global singletons (paragraph/sentence splitters, default persona, reranker and summarizer plugins) before the app starts and yields control to the FastAPI application until shutdown.
     """
     global wtp_paragraph_splitter, wtp_sentence_splitter, default_persona, reranker_plugin, summarizer_plugin
     wtp_paragraph_splitter = await get_wtp_paragraph_splitter()
@@ -63,13 +58,10 @@ wtp_sentence_splitter: Optional[WtPSentenceSplitter] = None
 
 async def get_wtp_paragraph_splitter() -> WtPParagraphSplitter:
     """
-    Provides a singleton instance of WtPParagraphSplitter.
-
-    This function initializes the WtPParagraphSplitter if it has not
-    been created yet and returns the instance.
-
+    Return the cached WtPParagraphSplitter, creating and caching it on first call.
+    
     Returns:
-        WtPParagraphSplitter: The initialized paragraph splitter instance.
+        WtPParagraphSplitter: The singleton paragraph splitter instance.
     """
     global wtp_paragraph_splitter
     if wtp_paragraph_splitter is None:
@@ -110,17 +102,17 @@ async def chunk(content: Union[str, bytes], file_extension: str = "txt",
                 chunking_strategy: str = "paragraphs",
                 filter_sents: bool = False) -> List[str]:
     """
-    Helper to split a document into smaller chunks for ingestion.
-
-    Args:
-        content (Union[str, bytes]): The content to be chunked. Can be a string or bytes.
-        file_extension (str): The file extension of the content (e.g., "txt", "pdf", "html").
-        chunking_strategy (str): The strategy to use for chunking ("paragraphs" or "sentences").
-        filter_sents (bool): If True, filters out sentences that do not contain a newline character.
-
-    Returns:
-        List[str]: A list of strings, where each string is a chunk of the original content.
-    """
+                Split input content into text chunks suitable for ingestion.
+                
+                Parameters:
+                    content (str|bytes): Input text or raw bytes to be chunked.
+                    file_extension (str): File type hint used to choose a splitter (e.g., "txt", "pdf", "doc", "docx", "html", "md").
+                    chunking_strategy (str): Chunking strategy: "paragraphs" or "sentences".
+                    filter_sents (bool): When True, for splitters that produce paragraphs, keep only chunks that contain a newline.
+                
+                Returns:
+                    List[str]: A list of text chunks extracted from the input content.
+                """
     # Determine chunking strategy and splitter
     splitter = None
 
@@ -169,14 +161,15 @@ async def chunk(content: Union[str, bytes], file_extension: str = "txt",
 
 async def get_reranker_plugin() -> MultipleChoiceSolver:
     """
-    FastAPI dependency that provides the initialized TldrSolver plugin instance.
-    Loads the plugin based on settings.
-
+    Load and return the cached MultipleChoiceSolver reranker plugin.
+    
+    Initializes and caches the configured MultipleChoiceSolver on first call and returns the cached instance on subsequent calls.
+    
     Returns:
-        MultipleChoiceSolver: The initialized MultipleChoiceSolver plugin.
-
+        MultipleChoiceSolver: The initialized reranker plugin instance.
+    
     Raises:
-        HTTPException: If the plugin fails to load.
+        HTTPException: If the plugin cannot be found or fails to load.
     """
     global reranker_plugin
     if reranker_plugin is None:
@@ -195,14 +188,13 @@ async def get_reranker_plugin() -> MultipleChoiceSolver:
 
 async def get_summarizer_plugin() -> TldrSolver:
     """
-    FastAPI dependency that provides the initialized TldrSolver plugin instance.
-    Loads the plugin based on settings.
-
+    Provide the initialized TldrSolver plugin configured from settings.
+    
     Returns:
-        TldrSolver: The initialized TldrSolver plugin.
-
+        TldrSolver: The initialized summarizer plugin.
+    
     Raises:
-        HTTPException: If the plugin fails to load.
+        HTTPException: If the configured plugin cannot be found or fails to initialize (HTTP 500).
     """
     global summarizer_plugin
     if summarizer_plugin is None:
@@ -221,18 +213,16 @@ async def get_summarizer_plugin() -> TldrSolver:
 
 async def get_default_persona() -> Persona:
     """
-    Asynchronously loads and returns the default persona.
-
-    This function acts as a dependency for FastAPI endpoints, ensuring
-    the persona is loaded once and reused across requests.
-    It raises HTTPException if the persona file is not configured,
-    not found, or invalid.
-
+    Load and cache the default Persona from application settings.
+    
+    Reads settings.persona_config, constructs a Persona, and caches it for reuse across requests.
+    Raises an HTTPException if the configuration is missing, malformed, or persona construction fails.
+    
     Returns:
-        Persona: The loaded OVOS Persona instance.
-
+        Persona: The loaded Persona instance.
+    
     Raises:
-        HTTPException: If persona configuration or loading fails.
+        HTTPException: On invalid persona configuration (HTTP 422) or other loading failures (HTTP 500).
     """
     global default_persona
     if default_persona is None:
@@ -256,14 +246,17 @@ async def stats(persona: Persona = Depends(get_default_persona),
                 summarizer: TldrSolver = Depends(get_summarizer_plugin),
                 reranker: MultipleChoiceSolver = Depends(get_reranker_plugin)) -> Status:
     """
-    Returns the status of the currently loaded persona.
-
-    Args:
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
-
-    Returns:
-        Status: An object containing the persona's name, loaded solvers, and models.
-    """
+                Return status information for the currently loaded persona, available solvers, configured plugins, and model identifiers.
+                
+                Returns:
+                    Status: A Status object containing:
+                        - persona: the persona's name.
+                        - solvers: list of loaded solver identifiers.
+                        - summarizer_plugin: configured summarizer plugin identifier.
+                        - reranker_plugin: configured reranker plugin identifier.
+                        - models: mapping of solver/plugin identifiers to their configured model names (when available).
+                        - version: version string including alpha suffix when present.
+                """
     version = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}a{VERSION_ALPHA}" \
         if VERSION_ALPHA else f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
     models = {s: persona.config.get(s, {}).get("model")
@@ -286,18 +279,14 @@ async def stats(persona: Persona = Depends(get_default_persona),
 async def summarize(request: SummarizeRequest = Body(...),
                     summarizer: TldrSolver = Depends(get_summarizer_plugin)) -> Response:
     """
-    Summarizes the input text using the configured summarizer plugin.
-
-    Args:
-        request (SummarizeRequest): The request body containing the text to summarize.
-        summarizer (TldrSolver): The summarizer plugin instance, injected by FastAPI.
-
-    Returns:
-        Response: A FastAPI Response object with the summarized content as plain text.
-
-    Raises:
-        HTTPException: If the summarization request fails or the plugin encounters an error.
-    """
+                    Generate a concise summary of the request input using the configured summarizer plugin.
+                    
+                    Parameters:
+                        request (SummarizeRequest): Request body containing the text to summarize in its `input` field.
+                    
+                    Returns:
+                        Response: FastAPI Response containing the summary as Markdown text.
+                    """
     summarized_content: str = summarizer.get_tldr(request.input)
     return Response(content=summarized_content, media_type="text/markdown")
 
@@ -306,35 +295,32 @@ async def summarize(request: SummarizeRequest = Body(...),
 async def rerank(request: RerankRequest = Body(...),
                  reranker: MultipleChoiceSolver = Depends(get_reranker_plugin)) -> List[Tuple[float, str]]:
     """
-    Reranks a list of documents based on a given query using the configured reranker plugin.
-
-    Args:
-        request (RerankRequest): The request body containing the query and documents to rerank.
-        reranker (MultipleChoiceSolver): The reranker plugin instance, injected by FastAPI.
-
-    Returns:
-        List[Tuple[float, str]]: A list of tuples, where each tuple contains a relevance score (float)
-                                  and the corresponding document (str), sorted by relevance.
-
-    Raises:
-        HTTPException: If the reranking request fails or the plugin encounters an error.
-    """
+                 Rank documents by relevance to the provided query.
+                 
+                 Parameters:
+                     request (RerankRequest): Contains `input` (the query) and `documents` (the list of documents to rank).
+                 
+                 Returns:
+                     List[Tuple[float, str]]: List of (score, document) tuples where `score` is the relevance score and `document` is the original document, ordered by relevance.
+                 """
     return reranker.rerank(request.input, request.documents)
 
 
 @persona_router.post("/segment")
 async def segment(request: SegmentRequest = Body(...)) -> List[str]:
     """
-    Segments the input text or content from a URL into smaller chunks.
-
-    Args:
-        request (SegmentRequest): The request body containing the input text or URL.
-
+    Split the provided text or the content at a URL into smaller content segments.
+    
+    If `request.input` starts with "http", the URL is fetched and its HTML is segmented; otherwise the input string is segmented.
+    
+    Parameters:
+        request (SegmentRequest): Request containing an `input` field with either raw text or a URL.
+    
     Returns:
-        List[str]: A list of strings, where each string is a segment of the input.
-
+        List[str]: A list of content segments.
+    
     Raises:
-        HTTPException: If the segmentation request fails (e.g., invalid URL or chunking error).
+        HTTPException: If fetching the URL fails (network error or non-2xx response).
     """
     if request.input.startswith("http"):
         try:
@@ -350,16 +336,13 @@ async def segment(request: SegmentRequest = Body(...)) -> List[str]:
 @persona_router.post("/segment/file")
 async def segment_file(file: UploadFile = File(..., description="The file to upload.")) -> List[str]:
     """
-    Segments an uploaded file into smaller chunks based on its file extension.
-
-    Args:
-        file (UploadFile): The uploaded file to be segmented.
-
+    Split an uploaded file's content into text chunks using a chunking strategy inferred from the file extension.
+    
+    Parameters:
+    	file (UploadFile): Uploaded file whose filename extension selects the chunking strategy (defaults to "txt" if no extension).
+    
     Returns:
-        List[str]: A list of strings, where each string is a segment of the file content.
-
-    Raises:
-        HTTPException: If the file processing fails (e.g., unable to read file, unsupported extension).
+    	List[str]: List of text segments extracted from the file content.
     """
     content_bytes: bytes = await file.read()
     extension: str = file.filename.split(".")[-1] if "." in file.filename else "txt"

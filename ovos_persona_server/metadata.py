@@ -74,7 +74,20 @@ class File(Base):
 
 
     def to_dict(self):
-        """Converts the ORM object to a dictionary, suitable for Pydantic model creation."""
+        """
+        Serialize the File ORM record to a dictionary matching the external file schema.
+        
+        Returns:
+            dict: Dictionary with keys:
+                - id (str)
+                - object (str)
+                - bytes (int)
+                - created_at (int)
+                - filename (str)
+                - purpose (FilePurpose): the purpose as a FilePurpose enum
+                - status (str)
+                - status_details (str | None)
+        """
         return {
             "id": self.id,
             "object": self.object,
@@ -113,8 +126,25 @@ class VectorStore(Base):
 
     def to_dict(self, file_counts: Optional[Dict[str, int]] = None, usage_bytes: int = 0):
         """
-        Converts the ORM object to a dictionary, suitable for Pydantic model creation.
-        Includes file counts and usage bytes dynamically.
+        Serialize the VectorStore ORM instance into a dictionary matching the public API schema.
+        
+        Parameters:
+            file_counts (Optional[Dict[str, int]]): Optional mapping of file categories to their counts to include in the output.
+            usage_bytes (int): Total usage in bytes to include in the output.
+        
+        Returns:
+            dict: Dictionary with keys:
+                - id: the vector store identifier.
+                - object: the object type string.
+                - created_at: creation timestamp (epoch seconds).
+                - name: the vector store name or None.
+                - usage_bytes: the provided usage_bytes value.
+                - file_counts: the provided file_counts mapping or None.
+                - status: `VectorStoreStatus` enum constructed from the stored status.
+                - expires_after: a `VectorStoreExpirationAfter` object when anchor and minutes are set, otherwise None.
+                - expires_at: explicit expiration timestamp or None.
+                - last_active_at: last active timestamp or None.
+                - metadata: parsed JSON from `extra_metadata` or None.
         """
         expires_after_obj = None
         if self.expires_after_anchor and self.expires_after_minutes is not None:
@@ -163,7 +193,20 @@ class VectorStoreFile(Base):
 
 
     def to_dict(self):
-        """Converts the ORM object to a dictionary, suitable for Pydantic model creation."""
+        """
+        Serialize the VectorStoreFile ORM instance into a dictionary matching the OpenAI-style API shape.
+        
+        Returns:
+            dict: Mapping with keys:
+                - id (str): Original `file_id` from the association.
+                - object (str): The object's type string.
+                - created_at (int): Unix epoch creation timestamp.
+                - vector_store_id (str): Associated vector store id.
+                - status (VectorStoreFileStatus): Status converted to the enum.
+                - usage_bytes (int): Stored usage in bytes.
+                - last_error (VectorStoreFileLastError | None): Parsed `last_error` JSON as a Pydantic object, or `None` if absent or malformed.
+                - chunking_strategy (VectorStoreFileChunkingStrategy | None): Parsed `chunking_strategy` JSON reconstructed into the Pydantic union type, or `None` if absent or malformed.
+        """
         last_error_obj = None
         if self.last_error:
             try:
@@ -227,8 +270,9 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db():
     """
-    Initializes the database by creating all tables defined in the ORM models.
-    This should be called once at application startup.
+    Create all ORM tables defined on Base.metadata in the configured database.
+    
+    This connects to the engine and runs metadata.create_all to ensure every table declared by the declarative models exists.
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -328,17 +328,12 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
 @ollama_router.get("/tags", response_model=OllamaTagsResponse, status_code=status.HTTP_200_OK)
 async def tags(persona: Persona = Depends(get_default_persona)) -> OllamaTagsResponse:
     """
-    Returns a list of available Ollama-compatible models.
-
-    This endpoint provides information about the models that the persona server
-    can expose, adhering to the Ollama API's /api/tags endpoint specification.
-    Currently, it reflects the loaded persona itself as a "model".
-
-    Args:
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
-
+    List available Ollama-compatible models exposed by the persona.
+    
+    Builds an OllamaTagsResponse containing an OllamaModel that represents the current persona. Solver modules are reported as model families and configured solver model names are joined into the model's parent_model. Fields not provided by the persona (parameter size, quantization, digest, size) are returned as placeholders.
+    
     Returns:
-        OllamaTagsResponse: A response containing a list of available models.
+        OllamaTagsResponse: Response containing a list with the persona represented as an OllamaModel.
     """
 
     # Get loaded solver modules from the persona, which can be thought of as "families"
@@ -378,24 +373,17 @@ async def embed_ollama(request_body: OllamaEmbedRequest,
                        embedder: TextEmbedder = Depends(get_text_embeddings)) -> \
         OllamaEmbedResponse:
     """
-    Generates embeddings for a given text or list of texts using the configured text embedder.
-
-    This endpoint adheres to the Ollama API's /api/embed endpoint specification.
-
-    Args:
-        request_body (OllamaEmbedRequest): The request body containing the text(s)
-                                           to embed and the model name, along with
-                                           advanced parameters like `truncate`, `options`,
-                                           and `keep_alive`.
-        embedder (TextEmbedder): The text embedder instance, injected by FastAPI's dependency.
-
-    Returns:
-        OllamaEmbedResponse: A response containing the generated embeddings (list of lists of floats)
-                             and other metadata like model name, durations, and token counts.
-
-    Raises:
-        HTTPException: If the input text(s) to embed are missing or embedding generation fails.
-    """
+                       Generate embeddings for a text or list of texts using the configured text embedder.
+                       
+                       Parameters:
+                           request_body (OllamaEmbedRequest): Request containing `input` (a string or list of strings) to embed and optional `model` name/parameters.
+                       
+                       Returns:
+                           OllamaEmbedResponse: Response with `embeddings` (list of float vectors), `model` name, `total_duration` (nanoseconds), and placeholder metrics (`load_duration`, `prompt_eval_count`).
+                       
+                       Raises:
+                           HTTPException: If `input` is missing (400) or embedding generation fails (500).
+                       """
     input_data: Union[str, List[str]] = request_body.input
     model_name: str = request_body.model  # Capture the model name from the request
 
