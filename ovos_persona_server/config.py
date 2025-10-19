@@ -114,7 +114,7 @@ class Settings:
     llm_key: Optional[str] = os.environ.get('LLM_KEY')
     text_embeddings_plugin: str = field(
         default_factory=lambda: os.environ.get('TEXT_EMBEDDINGS_PLUGIN', "ovos-gguf-embeddings-plugin"))
-    image_embeddings_plugin: str = field(default_factory=lambda: os.environ.get('IMAGE_EMBEDDINGS_PLUGIN', ""))
+    image_embeddings_plugin: Optional[str] = field(default_factory=lambda: os.environ.get('IMAGE_EMBEDDINGS_PLUGIN'))
     embeddings_db_plugin: str = field(
         default_factory=lambda: os.environ.get('EMBEDDINGS_DB_PLUGIN', "ovos-chromadb-embeddings-plugin"))
     embeddings_verbose: Optional[str] = os.environ.get('EMBEDDINGS_VERBOSE')
