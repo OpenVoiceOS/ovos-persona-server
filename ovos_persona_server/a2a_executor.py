@@ -1,9 +1,12 @@
+import asyncio
+from typing import Callable, AsyncGenerator
+
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.apps.jsonrpc import A2AFastAPIApplication
 from a2a.server.events import EventQueue
-from a2a.server.tasks import TaskUpdater
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
+from a2a.server.tasks import TaskUpdater
 from a2a.types import (
     InternalError,
     Part,
@@ -17,9 +20,11 @@ from a2a.types import (
 from a2a.utils import new_task, new_agent_text_message
 from a2a.utils.errors import ServerError
 from fastapi import FastAPI
+from ovos_bus_client.session import Session
 from ovos_persona import Persona
 from ovos_utils.log import LOG
-from ovos_bus_client.session import Session
+
+from ovos_persona_server.persona import get_default_persona
 
 
 class PersonaAgentExecutor(AgentExecutor):
@@ -73,12 +78,11 @@ class PersonaAgentExecutor(AgentExecutor):
                 [Part(root=TextPart(text="\n".join(response)))],
                 name='full_response',
             )
-            await updater.complete() # marks task as complete and publishes a final update
+            await updater.complete()  # marks task as complete and publishes a final update
 
         except Exception as e:
             LOG.error(f'An error occurred while streaming the response: {e}')
             raise ServerError(error=InternalError()) from e
-
 
     async def cancel(
             self, context: RequestContext, event_queue: EventQueue
@@ -86,7 +90,15 @@ class PersonaAgentExecutor(AgentExecutor):
         raise ServerError(error=UnsupportedOperationError())
 
 
-def get_a2a_app(persona: Persona, version: str, url: str) -> FastAPI:
+def get_a2a_app(version: str,
+                domain: str,
+                lifespan: Callable[[FastAPI], AsyncGenerator[None, None]],
+                rpc_url="/a2a",
+                title="OpenVoiceOS Persona Server",
+                description="OpenAI/Ollama compatible API for OVOS Personas and Solvers") -> FastAPI:
+
+    persona: Persona = asyncio.run(get_default_persona())
+
     skill = AgentSkill(
         id='ovos_persona',
         name='chat',
@@ -98,7 +110,7 @@ def get_a2a_app(persona: Persona, version: str, url: str) -> FastAPI:
     public_agent_card = AgentCard(
         name=persona.name,
         description=f"chat with {persona.name}",
-        url=url,
+        url=domain + rpc_url,
         version=version or '0.0.0',
         default_input_modes=['text'],
         default_output_modes=['text'],
@@ -117,5 +129,7 @@ def get_a2a_app(persona: Persona, version: str, url: str) -> FastAPI:
         http_handler=request_handler
     )
 
-    return server.build(title="OpenVoiceOS Persona Server",
-                        description="OpenAI/Ollama compatible API for OVOS Personas and Solvers")
+    return server.build(title=title,
+                        rpc_url=f"{rpc_url}",
+                        description=description,
+                        lifespan=lifespan)

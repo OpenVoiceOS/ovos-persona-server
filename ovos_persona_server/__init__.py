@@ -6,19 +6,31 @@ and includes various API routers for chat, embeddings, Ollama, persona status,
 and mock OpenAI Vector Stores. It now centrally manages the unified SQLite database
 initialization using SQLAlchemy.
 """
-import json
 import os
-from typing import Optional
+from contextlib import asynccontextmanager
+from typing import Optional, AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from ovos_persona import Persona
 from ovos_utils.log import LOG
 
-import ovos_persona_server.persona
+from ovos_persona_server.a2a_executor import get_a2a_app
+from ovos_persona_server.config import settings
+from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
 
 
-def create_persona_app(persona_path: str, host: str, port: int, enable_a2a: bool = True) -> FastAPI:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
+    """
+    await get_default_persona()
+    yield
+    # No specific shutdown logic needed
+
+
+def create_persona_app(persona_path: str, domain: Optional[str] = None, enable_a2a: bool = False) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
@@ -30,30 +42,28 @@ def create_persona_app(persona_path: str, host: str, port: int, enable_a2a: bool
     Returns:
         FastAPI: The configured FastAPI application instance.
     """
-
-    with open(persona_path) as f:
-        persona = json.load(f)
-        persona["name"] = persona.get("name") or os.path.basename(persona_path)
-
-    # TODO - move to dependency injection
-    # see https://github.com/OpenVoiceOS/ovos-persona-server/pull/11
-    ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
-
-    from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
+    if persona_path:
+        settings.persona = os.path.expanduser(persona_path)
 
     version_str = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_BUILD}"
     if VERSION_ALPHA:
         version_str += f"a{VERSION_ALPHA}"
 
+    title = "OpenVoiceOS Persona Server"
+    description = "OpenAI/Ollama compatible API for OVOS Personas and Solvers"
+
     if enable_a2a:
-        from ovos_persona_server.a2a_executor import get_a2a_app
-        # TODO - find external ip address
-        app = get_a2a_app(persona, version_str, f'http://{host}:{port}')
+        app = get_a2a_app(version=version_str,
+                          domain=domain,
+                          title=title,
+                          description=description,
+                          lifespan=lifespan)
         LOG.info("Enabled A2A endpoints")
     else:
-        app = FastAPI(title="OpenVoiceOS Persona Server",
-                      description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
-                      version=version_str)
+        app = FastAPI(title=title,
+                      description=description,
+                      version=version_str,
+                      lifespan=lifespan)
 
     app.add_middleware(
         CORSMiddleware,

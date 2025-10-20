@@ -5,10 +5,13 @@ This module defines the FastAPI router for persona-related endpoints,
 including loading the default persona and providing its status.
 """
 
+import json
 from typing import Optional
 
 from fastapi import HTTPException, status
 from ovos_persona import Persona
+
+from ovos_persona_server.config import settings
 
 # Dependency injection
 default_persona: Optional[Persona] = None
@@ -31,6 +34,16 @@ async def get_default_persona() -> Persona:
     """
     global default_persona
     if default_persona is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to load persona")
+        persona_data: dict = settings.persona_config
+        try:
+            default_persona = Persona(persona_data["name"], persona_data)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"JSONDecodeError for persona config: {persona_data}") from e
+        except KeyError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Invalid JSON config for persona: {persona_data}") from e
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Failed to load persona: {e}") from e
     return default_persona
