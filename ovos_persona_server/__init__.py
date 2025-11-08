@@ -1,274 +1,67 @@
-import datetime
-import json
-import os.path
-import random
-import string
-import time
-from typing import Any
+"""
+Main application entry point for the OVOS Persona Server.
 
-from flask import Flask, request
-from ovos_bus_client.session import SessionManager
+This module initializes the FastAPI application, sets up CORS middleware,
+and includes various API routers for chat, embeddings, Ollama, persona status,
+and mock OpenAI Vector Stores. It now centrally manages the unified SQLite database
+initialization using SQLAlchemy.
+"""
+import json
+import os
+from typing import Optional
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from ovos_persona import Persona
 
+import ovos_persona_server.persona
 
-def get_app(persona_json):
-    app = Flask(__name__)
 
-    with open(persona_json) as f:
+def create_persona_app(persona_path: str) -> FastAPI:
+    """
+    Creates and configures the FastAPI application for the Persona Server.
+
+    Args:
+        persona_path (Optional[str]): Optional path to a persona JSON file.
+                                      If provided, it overrides the default
+                                      persona path from settings or environment.
+
+    Returns:
+        FastAPI: The configured FastAPI application instance.
+    """
+
+    with open(persona_path) as f:
         persona = json.load(f)
-        persona["name"] = persona.get("name") or os.path.basename(persona_json)
+        persona["name"] = persona.get("name") or os.path.basename(persona_path)
 
-    persona = Persona(persona["name"], persona)
+    # TODO - move to dependency injection
+    ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
 
-    #######
-    @app.route("/status", methods=["GET"])
-    def status():
-        return {"persona": persona.name,
-                "solvers": list(persona.solvers.loaded_modules.keys()),
-                "models": {s: persona.config.get(s, {}).get("model")
-                           for s in persona.solvers.loaded_modules.keys()}}
+    from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
 
-    ##############
-    # OpenAI api compat
-    @app.route("/chat/completions", methods=["POST"])
-    def chat_completions():
-        data = request.get_json()
-        stream = data.get("stream", False)
-        messages = data.get("messages")
+    version_str = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_BUILD}"
+    if VERSION_ALPHA:
+        version_str += f"a{VERSION_ALPHA}"
 
-        completion_id = "".join(random.choices(string.ascii_letters + string.digits, k=28))
-        completion_timestamp = int(time.time())
+    app = FastAPI(title="OVOS Persona Server",
+                  description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
+                  version=version_str)
 
-        if not stream:
-            return {
-                "id": f"chatcmpl-{completion_id}",
-                "object": "chat.completion",
-                "created": completion_timestamp,
-                "model": persona.name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": persona.chat(messages),
-                        },
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": None,
-                    "completion_tokens": None,
-                    "total_tokens": None,
-                },
-            }
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allows all origins
+        allow_credentials=True,
+        allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+        allow_headers=["*"],  # Allows all headers
+    )
 
-        def streaming():
-            for chunk in persona.stream(messages):
-                completion_data = {
-                    "id": f"chatcmpl-{completion_id}",
-                    "object": "chat.completion.chunk",
-                    "created": completion_timestamp,
-                    "model": persona.name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "content": chunk,
-                            },
-                            "finish_reason": None,
-                        }
-                    ],
-                }
+    # Include routers for different API functionalities
+    # imported here only after the Persona object is loaded
+    from ovos_persona_server.chat import chat_router
+    from ovos_persona_server.ollama import ollama_router
 
-                content = json.dumps(completion_data, separators=(",", ":"))
-                yield f"data: {content}\n\n"
-                time.sleep(0.1)
+    app.include_router(chat_router)
+    app.include_router(ollama_router)
 
-            end_completion_data: dict[str, Any] = {
-                "id": f"chatcmpl-{completion_id}",
-                "object": "chat.completion.chunk",
-                "created": completion_timestamp,
-                "model": persona.name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop",
-                    }
-                ],
-            }
-            content = json.dumps(end_completion_data, separators=(",", ":"))
-            yield f"data: {content}\n\n"
-
-        return app.response_class(streaming(), mimetype="text/event-stream")
-
-    ############
-    # Ollama api compat
-    @app.route("/api/chat", methods=["POST"])
-    def chat():
-        model = request.json.get("model")
-        messages = request.json.get("messages")
-        tools = request.json.get("tools")
-        stream = request.json.get("stream")
-
-        # Format timestamp to the desired format
-        completion_timestamp = (datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-                                + f'.{int(time.time() * 1_000_000) % 1_000_000:06d}Z')
-
-        sess = SessionManager().get()
-
-        if not stream:
-            ans = persona.chat(messages, lang=sess.lang, units=sess.system_unit)
-            data = {
-                "model": persona.name,
-                "created_at": completion_timestamp,
-                "message": {
-                    "role": "assistant",
-                    "content": ans,
-                },
-                "done": True
-                # "context": [1, 2, 3],
-                # "total_duration": 5043500667,
-                # "load_duration": 5025959,
-                # "prompt_eval_count": 26,
-                # "prompt_eval_duration": 325953000,
-                # "eval_count": 290,
-                # "eval_duration": 4709213000
-            }
-            return data
-
-        def streaming():
-            for ans in persona.stream(messages, lang=sess.lang, units=sess.system_unit):
-                data = {
-                    "model": persona.name,
-                    "created_at": completion_timestamp,
-                    "message": {
-                        "role": "assistant",
-                        "content": ans
-                    },
-                    "done": False,
-                    # "context": [1, 2, 3],
-                    # "total_duration": 10706818083,
-                    # "load_duration": 6338219291,
-                    # "prompt_eval_count": 26,
-                    # "prompt_eval_duration": 130079000,
-                    # "eval_count": 259,
-                    # "eval_duration": 4232710000
-                }
-                content = json.dumps(data)
-                yield content + "\n"
-
-            end_completion_data = {
-                "model": persona.name,
-                "created_at": completion_timestamp,
-                "message": {
-                    "role": "assistant",
-                    "content": ""
-                },
-                "done": True,
-                # "context": [1, 2, 3],
-                # "total_duration": 10706818083,
-                # "load_duration": 6338219291,
-                # "prompt_eval_count": 26,
-                # "prompt_eval_duration": 130079000,
-                # "eval_count": 259,
-                # "eval_duration": 4232710000
-            }
-            content = json.dumps(end_completion_data)
-            yield content + "\n"
-
-        return app.response_class(streaming(), mimetype="application/json")
-
-    @app.route("/api/generate", methods=["POST"])
-    def generate():
-        model = request.json.get("model")
-        prompt = request.json.get("prompt")
-        suffix = request.json.get("suffix")
-        system = request.json.get("system")
-        template = request.json.get("template")
-        stream = request.json.get("stream")
-
-        sess = SessionManager().get()
-
-        messages = [{
-            "role": "user",
-            "content": prompt
-        }]
-        if system:
-            messages.insert(0, {"role": "system", "content": system})
-
-        # Format timestamp to the desired format
-        completion_timestamp = (datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-                                + f'.{int(time.time() * 1_000_000) % 1_000_000:06d}Z')
-
-        sess = SessionManager().get()
-
-        if not stream:
-            ans = persona.chat(messages, lang=sess.lang, units=sess.system_unit)
-            data = {
-                "model": persona.name,
-                "created_at": completion_timestamp,
-                "message": {
-                    "role": "assistant",
-                    "content": ans,
-                },
-                "done": True
-                # "context": [1, 2, 3],
-                # "total_duration": 5043500667,
-                # "load_duration": 5025959,
-                # "prompt_eval_count": 26,
-                # "prompt_eval_duration": 325953000,
-                # "eval_count": 290,
-                # "eval_duration": 4709213000
-            }
-            return data
-
-        def streaming():
-            for ans in persona.stream(messages, lang=sess.lang, units=sess.system_unit):
-                data = {
-                    "model": persona.name,
-                    "created_at": completion_timestamp,
-                    "message": {
-                        "role": "assistant",
-                        "content": ans
-                    },
-                    "done": False,
-                    # "context": [1, 2, 3],
-                    # "total_duration": 10706818083,
-                    # "load_duration": 6338219291,
-                    # "prompt_eval_count": 26,
-                    # "prompt_eval_duration": 130079000,
-                    # "eval_count": 259,
-                    # "eval_duration": 4232710000
-                }
-                content = json.dumps(data)
-                yield content + "\n"
-
-            end_completion_data = {
-                "model": persona.name,
-                "created_at": completion_timestamp,
-                "message": {
-                    "role": "assistant",
-                    "content": ""
-                },
-                "done": True,
-                # "context": [1, 2, 3],
-                # "total_duration": 10706818083,
-                # "load_duration": 6338219291,
-                # "prompt_eval_count": 26,
-                # "prompt_eval_duration": 130079000,
-                # "eval_count": 259,
-                # "eval_duration": 4232710000
-            }
-            content = json.dumps(end_completion_data)
-            yield content + "\n"
-
-        return app.response_class(streaming(), mimetype="text/event-stream")
-
-    @app.route("/api/tags", methods=["GET"])
-    def tags():
-        return {"models": [
-            {"name": persona.name, "model": str(persona.solvers.sort_order[0])}
-        ]}
 
     return app
