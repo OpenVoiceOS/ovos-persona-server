@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.4.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.1a1) (2025-10-17)
+## [0.5.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a1) (2025-12-18)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0...0.4.1a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.0...0.5.1a1)
 
 **Merged pull requests:**
 
-- refactor: migrate to fastapi [\#14](https://github.com/OpenVoiceOS/ovos-persona-server/pull/14) ([JarbasAl](https://github.com/JarbasAl))
+- chore: Configure Renovate [\#19](https://github.com/OpenVoiceOS/ovos-persona-server/pull/19) ([renovate[bot]](https://github.com/apps/renovate))
 
 
 
