@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ovos_persona_server.persona import get_default_persona
 
-bedrock_router = APIRouter(prefix="/model", tags=["aws-bedrock"])
+bedrock_router = APIRouter(prefix="/bedrock/model", tags=["aws-bedrock"])
 
 
 def _new_id() -> str:

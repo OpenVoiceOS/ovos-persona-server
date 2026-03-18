@@ -16,7 +16,7 @@ from ovos_persona_server.schemas.gemini import (
     GeminiResponse,
 )
 
-gemini_router = APIRouter(prefix="/v1beta/models", tags=["gemini"])
+gemini_router = APIRouter(prefix="/gemini/v1beta/models", tags=["gemini"])
 
 
 def _normalise_messages(request: GeminiRequest) -> List[Dict[str, str]]:

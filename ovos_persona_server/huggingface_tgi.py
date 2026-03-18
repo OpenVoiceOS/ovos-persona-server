@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from ovos_persona_server.persona import get_default_persona
 
-tgi_router = APIRouter(tags=["huggingface-tgi"])
+tgi_router = APIRouter(prefix="/tgi", tags=["huggingface-tgi"])
 
 
 class TGIParameters(BaseModel):

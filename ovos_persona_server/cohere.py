@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ovos_persona_server.persona import get_default_persona
 
-cohere_router = APIRouter(prefix="/v1", tags=["cohere"])
+cohere_router = APIRouter(prefix="/cohere/v1", tags=["cohere"])
 
 
 class CohereChatMessage(BaseModel):

@@ -18,7 +18,7 @@ from ovos_persona_server.schemas.anthropic import (
     AnthropicUsage,
 )
 
-anthropic_router = APIRouter(prefix="/v1", tags=["anthropic"])
+anthropic_router = APIRouter(prefix="/anthropic/v1", tags=["anthropic"])
 
 
 def _normalise_messages(request: AnthropicRequest) -> List[Dict[str, str]]:
