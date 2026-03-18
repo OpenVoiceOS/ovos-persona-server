@@ -57,14 +57,20 @@ def _make_app() -> FastAPI:
     from ovos_persona_server.cohere import cohere_router
     from ovos_persona_server.huggingface_tgi import tgi_router
     from ovos_persona_server.aws_bedrock import bedrock_router
+    from ovos_persona_server.deprecated_routers import (
+        add_deprecation_middleware,
+        register_deprecated_routes,
+    )
 
     app = FastAPI()
-    app.include_router(chat_router)
-    app.include_router(anthropic_router)
-    app.include_router(gemini_router)
-    app.include_router(cohere_router)
-    app.include_router(tgi_router)
-    app.include_router(bedrock_router)
+    app.include_router(chat_router)         # /openai/v1/...
+    app.include_router(anthropic_router)    # /anthropic/v1/...
+    app.include_router(gemini_router)       # /gemini/v1beta/models/...
+    app.include_router(cohere_router)       # /cohere/v1/...
+    app.include_router(tgi_router)          # /tgi/...
+    app.include_router(bedrock_router)      # /bedrock/model/...
+    register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
+    add_deprecation_middleware(app)
     app.dependency_overrides[get_default_persona] = _override_persona
     return app
 
@@ -76,13 +82,13 @@ def client():
 
 
 # ---------------------------------------------------------------------------
-# OpenAI chat  (prefix: /v1 — original prefix)
+# OpenAI chat  (canonical prefix: /openai/v1)
 # ---------------------------------------------------------------------------
 
 class TestOpenAIChatRouter:
     def test_chat_completions_non_stream(self, client):
         resp = client.post(
-            "/v1/chat/completions",
+            "/openai/v1/chat/completions",
             json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}]},
         )
         assert resp.status_code == 200
@@ -90,7 +96,7 @@ class TestOpenAIChatRouter:
 
     def test_chat_completions_stream(self, client):
         resp = client.post(
-            "/v1/chat/completions",
+            "/openai/v1/chat/completions",
             json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}], "stream": True},
         )
         assert resp.status_code == 200
@@ -99,7 +105,7 @@ class TestOpenAIChatRouter:
         assert len(lines) > 1
 
     def test_list_models(self, client):
-        resp = client.get("/v1/models")
+        resp = client.get("/openai/v1/models")
         assert resp.status_code == 200
         body = resp.json()
         assert body["object"] == "list"
@@ -107,17 +113,51 @@ class TestOpenAIChatRouter:
 
     def test_embeddings_no_solver_returns_501(self, client):
         resp = client.post(
-            "/v1/embeddings",
+            "/openai/v1/embeddings",
             json={"model": "text-embedding-ada-002", "input": "hello"},
         )
         assert resp.status_code == 501
 
     def test_chat_invalid_role_rejected(self, client):
         resp = client.post(
-            "/v1/chat/completions",
+            "/openai/v1/chat/completions",
             json={"model": "fake-persona", "messages": [{"role": "bad_role", "content": "hi"}]},
         )
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Deprecated OpenAI paths  (/v1/... → /openai/v1/... with headers)
+# ---------------------------------------------------------------------------
+
+class TestDeprecatedOpenAIChatRouter:
+    def test_deprecated_chat_still_works(self, client):
+        resp = client.post(
+            "/v1/chat/completions",
+            json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["choices"][0]["message"]["content"] == "hello from fake persona"
+
+    def test_deprecated_chat_has_deprecation_header(self, client):
+        resp = client.post(
+            "/v1/chat/completions",
+            json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}]},
+        )
+        assert resp.headers.get("Deprecation") == "true"
+        assert "/openai/v1/chat/completions" in resp.headers.get("Link", "")
+
+    def test_deprecated_models_has_deprecation_header(self, client):
+        resp = client.get("/v1/models")
+        assert resp.status_code == 200
+        assert resp.headers.get("Deprecation") == "true"
+
+    def test_deprecated_embeddings_still_works(self, client):
+        resp = client.post(
+            "/v1/embeddings",
+            json={"model": "text-embedding-ada-002", "input": "hello"},
+        )
+        assert resp.status_code == 501  # no solver, but path is reachable
 
 
 # ---------------------------------------------------------------------------

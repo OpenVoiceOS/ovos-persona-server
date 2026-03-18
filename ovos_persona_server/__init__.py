@@ -64,14 +64,23 @@ def create_persona_app(persona_path: str) -> FastAPI:
     from ovos_persona_server.cohere import cohere_router
     from ovos_persona_server.huggingface_tgi import tgi_router
     from ovos_persona_server.aws_bedrock import bedrock_router
+    from ovos_persona_server.deprecated_routers import (
+        add_deprecation_middleware,
+        register_deprecated_routes,
+    )
 
-    app.include_router(chat_router)
-    app.include_router(ollama_router)
-    app.include_router(anthropic_router)
-    app.include_router(gemini_router)
-    app.include_router(cohere_router)
-    app.include_router(tgi_router)
-    app.include_router(bedrock_router)
+    # Canonical prefixed routers
+    app.include_router(chat_router)         # /openai/v1/...
+    app.include_router(ollama_router)       # /ollama/api/...
+    app.include_router(anthropic_router)    # /anthropic/v1/...
+    app.include_router(gemini_router)       # /gemini/v1beta/models/...
+    app.include_router(cohere_router)       # /cohere/v1/...
+    app.include_router(tgi_router)          # /tgi/...
+    app.include_router(bedrock_router)      # /bedrock/model/...
+
+    # Legacy deprecated paths — same handlers, with Deprecation + Link headers
+    register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
+    add_deprecation_middleware(app)         # injects headers on /v1/* and /api/*
 
 
     return app

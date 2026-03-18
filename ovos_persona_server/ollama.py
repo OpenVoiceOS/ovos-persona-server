@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # No specific shutdown logic needed for these dependencies currently
 
 
-ollama_router = APIRouter(prefix="/api", tags=["ollama"], lifespan=lifespan)
+ollama_router = APIRouter(prefix="/ollama/api", tags=["ollama"], lifespan=lifespan)
 
 
 def timestamp() -> str:

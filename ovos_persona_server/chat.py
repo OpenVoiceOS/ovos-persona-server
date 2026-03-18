@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # No specific shutdown logic needed for these dependencies currently
 
 
-chat_router = APIRouter(prefix="/v1", tags=["openai"], lifespan=lifespan)
+chat_router = APIRouter(prefix="/openai/v1", tags=["openai"], lifespan=lifespan)
 
 
 @chat_router.post(
