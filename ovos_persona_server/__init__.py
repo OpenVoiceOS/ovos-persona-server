@@ -59,9 +59,19 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.anthropic import anthropic_router
+    from ovos_persona_server.gemini import gemini_router
+    from ovos_persona_server.cohere import cohere_router
+    from ovos_persona_server.huggingface_tgi import tgi_router
+    from ovos_persona_server.aws_bedrock import bedrock_router
 
     app.include_router(chat_router)
     app.include_router(ollama_router)
+    app.include_router(anthropic_router)
+    app.include_router(gemini_router)
+    app.include_router(cohere_router)
+    app.include_router(tgi_router)
+    app.include_router(bedrock_router)
 
 
     return app

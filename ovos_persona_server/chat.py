@@ -11,11 +11,12 @@ import random
 import string
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Dict, Any, Union
+from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, status, Depends, FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
+from pydantic import BaseModel, Field
 
 from ovos_persona_server.persona import get_default_persona
 from ovos_persona_server.schemas.openai_chat import (
@@ -41,7 +42,7 @@ chat_router = APIRouter(prefix="/v1", tags=["openai"], lifespan=lifespan)
 
 @chat_router.post(
     "/chat/completions",
-    response_model=Union[CreateChatCompletionResponse, CreateChatCompletionStreamResponse],
+    response_model=None,
     status_code=status.HTTP_200_OK
 )
 async def chat_completions(
@@ -193,7 +194,7 @@ async def chat_completions(
     return StreamingResponse(streaming_chat_response(), media_type="text/event-stream")
 
 
-@chat_router.post("/completions", response_model=CreateCompletionResponse, status_code=status.HTTP_200_OK)
+@chat_router.post("/completions", response_model=None, status_code=status.HTTP_200_OK)
 async def create_completion(
         request_body: CreateCompletionRequest,
         persona: Persona = Depends(get_default_persona)
@@ -282,7 +283,7 @@ async def create_completion(
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
-                    yield f"data: {json.dumps({
+                    chunk_data = {
                         'id': f"cmpl-{completion_id}",
                         'object': "text_completion",
                         'created': completion_timestamp,
@@ -290,27 +291,109 @@ async def create_completion(
                         'choices': [{
                             'text': chunk,
                             'index': 0,
-                            'logprobs': None,  # Not supported in this basic implementation
+                            'logprobs': None,
                             'finish_reason': None
                         }]
-                    })}\n\n"
+                    }
+                    yield f"data: {json.dumps(chunk_data)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason
-        yield f"data: {json.dumps({
+        final_completion_data = {
             'id': f"cmpl-{completion_id}",
             'object': "text_completion",
             'created': completion_timestamp,
             'model': request_body.model,
             'choices': [{
-                'text': "",  # Empty text for the final chunk
+                'text': "",
                 'index': 0,
                 'logprobs': None,
                 'finish_reason': FinishReason.STOP.value
             }]
-        })}\n\n"
+        }
+        yield f"data: {json.dumps(final_completion_data)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(streaming_completion_response(), media_type="text/event-stream")
+
+
+@chat_router.get("/models")
+async def list_models(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+    """List available models (OpenAI-compatible).
+
+    Args:
+        persona: Injected persona instance.
+
+    Returns:
+        OpenAI-format models list containing the loaded persona.
+    """
+    return JSONResponse({
+        "object": "list",
+        "data": [
+            {
+                "id": persona.name,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "ovos",
+            }
+        ],
+    })
+
+
+class OpenAIEmbeddingsRequest(BaseModel):
+    """Request body for POST /v1/embeddings."""
+
+    model: str = Field(default="text-embedding-ada-002", min_length=1)
+    input: Union[str, List[str]] = Field(..., description="Text or list of texts to embed")
+    encoding_format: Literal["float", "base64"] = "float"
+    dimensions: Optional[int] = Field(default=None, gt=0)
+    user: Optional[str] = None
+
+
+@chat_router.post("/embeddings")
+async def embeddings(
+        request_body: OpenAIEmbeddingsRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> JSONResponse:
+    """Generate embeddings (OpenAI-compatible stub).
+
+    Delegates to persona's embeddings solver if available.
+
+    Args:
+        request_body: OpenAI embeddings request with model and input.
+        persona: Injected persona instance.
+
+    Returns:
+        Embeddings response or 501 if not supported.
+
+    Raises:
+        HTTPException: 501 if no embeddings solver is configured.
+    """
+    solver_names = list(persona.solvers.loaded_modules.keys())
+    embed_solver = None
+    for name in solver_names:
+        solver = persona.solvers.loaded_modules[name]
+        if hasattr(solver, "get_embeddings"):
+            embed_solver = solver
+            break
+
+    if embed_solver is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="No embeddings solver configured for this persona.",
+        )
+
+    texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
+    data = []
+    for i, t in enumerate(texts):
+        vec = embed_solver.get_embeddings(t)
+        data.append({"object": "embedding", "embedding": vec, "index": i})
+
+    return JSONResponse({
+        "object": "list",
+        "data": data,
+        "model": request_body.model,
+        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+    })
