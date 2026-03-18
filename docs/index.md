@@ -1,39 +1,57 @@
-# ovos-persona-server
+# ovos-persona-server — Documentation
 
-OVOS Persona Server exposes a single OVOS `Persona` instance as a multi-protocol HTTP API. Seven canonical router prefixes faithfully replicate each upstream provider's wire format.
+## What is this?
 
-## Table of Contents
+`ovos-persona-server` exposes a single OVOS `Persona` as a multi-protocol HTTP API. Eight API surfaces let any LLM client or A2A agent interact with your persona without modification.
 
-- [API Compatibility](api-compatibility.md) — all 7 APIs: prefixes, endpoints, auth, request schemas, curl examples
-- [Deprecation](deprecation.md) — legacy `/v1/` and `/api/` paths and migration guide
-- [Streaming](streaming.md) — SSE format per API
-- [Embeddings](embeddings.md) — embeddings endpoint and solver requirement
-- [Bedrock Models](bedrock-models.md) — model_id prefix detection and response format selection
+## Docs
 
-## Canonical API Prefixes
+| File | Contents |
+|------|----------|
+| [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
+| [a2a.md](a2a.md) | A2A endpoint: enabling, Agent Card, streaming, connecting ovos-a2a-agent |
+| [streaming.md](streaming.md) | SSE streaming format per API |
+| [embeddings.md](embeddings.md) | Embeddings endpoint and solver requirement |
+| [bedrock-models.md](bedrock-models.md) | AWS Bedrock model ID detection and response format selection |
+| [deprecation.md](deprecation.md) | Legacy `/v1/` and `/api/` paths; migration guide |
 
-| Router | Prefix | Source file |
-| :--- | :--- | :--- |
-| OpenAI | `/openai/v1` | `ovos_persona_server/chat.py` |
-| Ollama | `/ollama/api` | `ovos_persona_server/ollama.py` |
-| Anthropic | `/anthropic/v1` | `ovos_persona_server/anthropic.py` |
-| Gemini | `/gemini/v1beta/models` | `ovos_persona_server/gemini.py` |
-| Cohere | `/cohere/v1` | `ovos_persona_server/cohere.py` |
-| HuggingFace TGI | `/tgi` | `ovos_persona_server/huggingface_tgi.py` |
-| AWS Bedrock | `/bedrock/model` | `ovos_persona_server/aws_bedrock.py` |
+## API Surfaces at a Glance
 
-## Deprecated Legacy Paths
-
-| Legacy prefix | Canonical prefix |
-| :--- | :--- |
-| `/v1/...` | `/openai/v1/...` |
-| `/api/...` | `/ollama/api/...` |
-
-See [deprecation.md](deprecation.md) for migration details.
+| API | Prefix | Source |
+|-----|--------|--------|
+| OpenAI | `/openai/v1` | `chat.py` |
+| Ollama | `/ollama/api` | `ollama.py` |
+| Anthropic | `/anthropic/v1` | `anthropic.py` |
+| Google Gemini | `/gemini/v1beta/models` | `gemini.py` |
+| Cohere | `/cohere/v1` | `cohere.py` |
+| HuggingFace TGI | `/tgi` | `huggingface_tgi.py` |
+| AWS Bedrock | `/bedrock/model` | `aws_bedrock.py` |
+| A2A | `/a2a` | `a2a.py` (optional) |
 
 ## Architecture
 
-- `ovos_persona_server/persona.py` — `get_default_persona()` FastAPI dependency
-- `ovos_persona_server/deprecated_routers.py` — `register_deprecated_routes()`, `add_deprecation_middleware()`
-- `ovos_persona_server/__main__.py` — Uvicorn entry point
-- `ovos_persona_server/schemas/` — Pydantic request/response models
+```
+HTTP request
+  └─ FastAPI app  [__init__.py:create_persona_app]
+       ├─ chat_router          /openai/v1/...
+       ├─ ollama_router        /ollama/api/...
+       ├─ anthropic_router     /anthropic/v1/...
+       ├─ gemini_router        /gemini/v1beta/...
+       ├─ cohere_router        /cohere/v1/...
+       ├─ tgi_router           /tgi/...
+       ├─ bedrock_router       /bedrock/model/...
+       ├─ deprecated routes    /v1/... /api/... (with Deprecation header)
+       └─ A2A Starlette app    /a2a/... (optional; requires a2a-sdk)
+            └─ OVOSPersonaAgentExecutor  [a2a.py]
+                 └─ Persona.stream()     [ovos-persona]
+```
+
+## Key Classes
+
+| Symbol | File | Role |
+|--------|------|------|
+| `create_persona_app` | `__init__.py:20` | Factory: loads persona, wires all routers |
+| `get_default_persona` | `persona.py:17` | FastAPI dependency; returns loaded `Persona` |
+| `OVOSPersonaAgentExecutor` | `a2a.py:106` | A2A `AgentExecutor` wrapping `Persona.stream()` |
+| `_agent_card` | `a2a.py:66` | Builds A2A `AgentCard` from persona metadata |
+| `create_a2a_application` | `a2a.py:212` | Returns `A2AStarletteApplication` for mounting |
