@@ -26,11 +26,12 @@ from fastapi.testclient import TestClient
 
 class FakePersona:
     name: str = "fake-persona"
+    config: dict = {}
 
-    def chat(self, messages: List[Dict]) -> str:
+    def chat(self, messages: List[Dict], **kwargs) -> str:
         return "hello from fake persona"
 
-    def stream(self, messages: List[Dict]) -> Generator[str, None, None]:
+    def stream(self, messages: List[Dict], **kwargs) -> Generator[str, None, None]:
         for word in ["hello", " ", "streaming"]:
             yield word
 
@@ -52,6 +53,7 @@ def _override_persona():
 def _make_app() -> FastAPI:
     from ovos_persona_server.persona import get_default_persona
     from ovos_persona_server.chat import chat_router
+    from ovos_persona_server.ollama import ollama_router
     from ovos_persona_server.anthropic import anthropic_router
     from ovos_persona_server.gemini import gemini_router
     from ovos_persona_server.cohere import cohere_router
@@ -64,6 +66,7 @@ def _make_app() -> FastAPI:
 
     app = FastAPI()
     app.include_router(chat_router)         # /openai/v1/...
+    app.include_router(ollama_router)       # /ollama/api/...
     app.include_router(anthropic_router)    # /anthropic/v1/...
     app.include_router(gemini_router)       # /gemini/v1beta/models/...
     app.include_router(cohere_router)       # /cohere/v1/...
@@ -354,3 +357,106 @@ class TestAWSBedrockRouter:
         )
         assert resp.status_code == 200
         assert "output" in resp.json()
+
+    def test_converse_output_structure(self, client):
+        resp = client.post(
+            "/bedrock/model/anthropic.claude-3-sonnet/converse",
+            json={"messages": [{"role": "user", "content": [{"text": "hi"}]}]},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "output" in body
+        assert "message" in body["output"]
+        assert body["output"]["message"]["role"] == "assistant"
+        assert "content" in body["output"]["message"]
+        assert body["output"]["message"]["content"][0]["text"] == "hello from fake persona"
+
+
+# ---------------------------------------------------------------------------
+# Ollama  (canonical prefix: /ollama/api)
+# ---------------------------------------------------------------------------
+
+class TestOllamaRouter:
+    def test_tags_returns_models_list(self, client):
+        resp = client.get("/ollama/api/tags")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "models" in body
+        assert isinstance(body["models"], list)
+        assert len(body["models"]) >= 1
+        assert body["models"][0]["name"] == "fake-persona"
+
+    def test_chat_returns_message_field(self, client):
+        resp = client.post(
+            "/ollama/api/chat",
+            json={"model": "fake-persona", "messages": [{"role": "user", "content": "hello"}]},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "message" in body
+        assert body["message"]["content"] == "hello from fake persona"
+        assert body["done"] is True
+
+    def test_show_returns_model_card(self, client):
+        resp = client.get("/ollama/api/show")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "name" in body
+        assert body["name"] == "fake-persona"
+        assert "details" in body
+
+    def test_ps_returns_models_list(self, client):
+        resp = client.get("/ollama/api/ps")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "models" in body
+        assert isinstance(body["models"], list)
+        assert body["models"][0]["name"] == "fake-persona"
+
+    def test_pull_returns_success_status(self, client):
+        resp = client.post(
+            "/ollama/api/pull",
+            json={"model": "llama3"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "success"
+
+    def test_generate_returns_done_true(self, client):
+        resp = client.post(
+            "/ollama/api/generate",
+            json={"model": "fake-persona", "prompt": "hello"},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        # non-streaming /generate returns OllamaChatResponse which has "message" key
+        assert "message" in body
+        assert body["done"] is True
+
+    def test_embeddings_no_solver_returns_501(self, client):
+        resp = client.post(
+            "/ollama/api/embeddings",
+            json={"model": "fake-persona", "input": "hello"},
+        )
+        assert resp.status_code == 501
+
+
+# ---------------------------------------------------------------------------
+# Deprecated Ollama paths  (/api/... → /ollama/api/... with headers)
+# ---------------------------------------------------------------------------
+
+class TestDeprecatedOllamaRouter:
+    def test_deprecated_api_chat_returns_200(self, client):
+        resp = client.post(
+            "/api/chat",
+            json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}]},
+        )
+        assert resp.status_code == 200
+
+    def test_deprecated_api_chat_has_deprecation_header(self, client):
+        resp = client.post(
+            "/api/chat",
+            json={"model": "fake-persona", "messages": [{"role": "user", "content": "hi"}]},
+        )
+        assert resp.headers.get("Deprecation") == "true"
+        link = resp.headers.get("Link", "")
+        assert "/ollama/api/chat" in link
