@@ -1,5 +1,11 @@
 # Maintenance Report — `ovos-persona-server`
 
+## [2026-03-18c] — Add A2A server endpoint
+
+- **AI Model**: claude-sonnet-4-6
+- **Actions Taken**: Added `ovos_persona_server/a2a.py` (`OVOSPersonaAgentExecutor`, `_agent_card`, `create_a2a_application`). Updated `__init__.py` (`create_persona_app` now accepts `a2a_base_url`, mounts A2A at `/a2a` when provided). Updated `__main__.py` (`--a2a-base-url` CLI flag). Added `[a2a]` optional dependency in `pyproject.toml`. Added 13 unit tests in `test/unittests/test_a2a.py` (95% coverage). Updated `FAQ.md`, `docs/a2a.md`.
+- **Oversight**: Human-reviewed plan; AI-generated implementation staged for human push.
+
 ## [2026-03-18b] — Add Ollama generate + embeddings tests (39 → 41)
 
 ### Changes

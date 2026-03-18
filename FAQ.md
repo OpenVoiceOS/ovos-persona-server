@@ -3,7 +3,22 @@
 ## General
 
 **What is `ovos-persona-server`?**
-A FastAPI server that exposes a single OVOS `Persona` instance as seven concurrent API surfaces: OpenAI, Ollama, Anthropic, Gemini, Cohere, HuggingFace TGI, and AWS Bedrock.
+A FastAPI server that exposes a single OVOS `Persona` instance as eight concurrent API surfaces: OpenAI, Ollama, Anthropic, Gemini, Cohere, HuggingFace TGI, AWS Bedrock, and A2A (Agent-to-Agent).
+
+## A2A
+
+**How do I expose a persona as an A2A agent?**
+```bash
+uv pip install 'ovos-persona-server[a2a]'
+ovos-persona-server --persona my.json --a2a-base-url http://myhost:8337/a2a
+```
+The Agent Card is at `GET /a2a/.well-known/agent.json`. JSON-RPC calls go to `POST /a2a/`.
+
+**Is `a2a-sdk` required?**
+No — it is an optional dependency. Without it the server starts normally; A2A endpoints are omitted and a warning is logged if `--a2a-base-url` is provided.
+
+**Does the A2A endpoint support streaming?**
+Yes. `message/stream` is supported; persona sentence chunks are emitted as `TaskArtifactUpdateEvent` SSE events.
 
 **How do I install it?**
 ```bash
