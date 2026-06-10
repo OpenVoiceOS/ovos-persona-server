@@ -10,6 +10,8 @@ import json
 import os
 from typing import Optional
 
+from ovos_persona_server._pkg_version import __version__
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from ovos_persona import Persona
@@ -18,16 +20,14 @@ import ovos_persona_server.persona
 
 
 def create_persona_app(persona_path: str) -> FastAPI:
-    """
-    Creates and configures the FastAPI application for the Persona Server.
+    """Create and configure the FastAPI application for the Persona Server.
 
     Args:
-        persona_path (Optional[str]): Optional path to a persona JSON file.
-                                      If provided, it overrides the default
-                                      persona path from settings or environment.
+        persona_path: Path to a persona JSON file.  The ``name`` key is used
+            as the persona name; if absent the file's basename is used instead.
 
     Returns:
-        FastAPI: The configured FastAPI application instance.
+        The configured FastAPI application instance.
     """
 
     with open(persona_path) as f:
@@ -37,15 +37,9 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # TODO - move to dependency injection
     ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
 
-    from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
-
-    version_str = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_BUILD}"
-    if VERSION_ALPHA:
-        version_str += f"a{VERSION_ALPHA}"
-
     app = FastAPI(title="OVOS Persona Server",
                   description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
-                  version=version_str)
+                  version=__version__)
 
     app.add_middleware(
         CORSMiddleware,

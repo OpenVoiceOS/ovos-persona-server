@@ -46,6 +46,11 @@ _registry_ready: bool = False
 
 
 def _ensure_registry() -> Dict[str, Any]:
+    """Return the module-level tool registry, loading it on first call.
+
+    Returns:
+        The flat ``{tool_name: (toolbox, tool)}`` registry.
+    """
     global _registry, _registry_ready
     if not _registry_ready:
         _registry = get_flat_tool_registry()

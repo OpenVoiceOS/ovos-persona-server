@@ -97,18 +97,36 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
 
 
 
-def mount_mcp_on_app(app, path="/mcp", name="ovos-persona-tools"):
-    """Mount MCP streamable-HTTP transport at path with lifespan chaining."""
+def mount_mcp_on_app(app: "FastAPI", path: str = "/mcp", name: str = "ovos-persona-tools") -> None:
+    """Mount MCP streamable-HTTP transport onto an existing FastAPI app.
+
+    The MCP sub-application is mounted at *path* using the streamable-HTTP
+    transport.  ``mcp.settings.streamable_http_path`` is set to ``"/"`` so
+    clients connect at ``<path>/sse`` rather than the default ``<path>/mcp/sse``.
+
+    The host app's lifespan context is wrapped so the MCP session manager
+    starts and stops alongside the host process.
+
+    Args:
+        app: The FastAPI application to mount the MCP server on.
+        path: URL prefix for the MCP sub-application (default ``/mcp``).
+        name: Human-readable server name reported to MCP clients.
+    """
     from contextlib import asynccontextmanager
+
+    from fastapi import FastAPI  # local import to avoid circular at module level
+
     mcp = build_mcp_server(name=name)
     mcp.settings.streamable_http_path = "/"
     app.mount(path, mcp.streamable_http_app())
     _orig = app.router.lifespan_context
+
     @asynccontextmanager
-    async def _wrap(h):
+    async def _wrap(h: FastAPI):  # type: ignore[override]
         async with _orig(h):
             async with mcp.session_manager.run():
                 yield
+
     app.router.lifespan_context = _wrap
     LOG.info("MCP server mounted at %s (streamable-HTTP)", path)
 

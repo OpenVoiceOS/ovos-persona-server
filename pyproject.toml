@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ovos-persona-server"
+dynamic = ["version"]
+description = "simple flask server to host OpenVoiceOS persona plugins as a service"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{name = "JarbasAi", email = "jarbasai@mailfence.com"}]
+requires-python = ">=3.9"
+
+keywords = [
+    "plugin",
+    "lang",
+    "detect",
+    "translate",
+    "OVOS",
+    "OpenVoiceOS",
+]
+dependencies = [
+    "fastapi",
+    "ovos-persona",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0.0"]
+utcp = ["utcp>=0.1.0"]
+dev = ["pytest>=7.0", "pytest-asyncio", "pytest-cov", "httpx", "uvicorn"]
+
+[project.urls]
+Homepage = "https://github.com/OpenVoiceOS/ovos-persona-server"
+Repository = "https://github.com/OpenVoiceOS/ovos-persona-server"
+
+[project.scripts]
+ovos-persona-server = "ovos_persona_server.__main__:main"
+ovos-persona-tools-mcp = "ovos_persona_server.mcp_server:_run_stdio"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["ovos_persona_server*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ovos_persona_server._pkg_version.__version__"}
