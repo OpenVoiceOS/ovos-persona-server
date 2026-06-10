@@ -65,16 +65,12 @@ def create_persona_app(persona_path: str) -> FastAPI:
     app.include_router(ollama_router)
     app.include_router(utcp_router)
 
-    # Mount MCP server (SSE transport) when the `mcp` package is available.
+    # Mount MCP server (streamable-HTTP transport) when the `mcp` package is available.
+    # mount_mcp_on_app sets streamable_http_path="/" so the endpoint lands at /mcp
+    # (not /mcp/mcp) and chains the session manager into the host app lifespan.
     try:
-        from ovos_persona_server.mcp_server import build_mcp_server
-        mcp = build_mcp_server()
-        # FastMCP exposes a Starlette sub-app via sse_app() / streamable_http_app()
-        try:
-            mcp_asgi = mcp.sse_app()
-        except AttributeError:
-            mcp_asgi = mcp.streamable_http_app()
-        app.mount("/mcp", mcp_asgi)
+        from ovos_persona_server.mcp_server import mount_mcp_on_app
+        mount_mcp_on_app(app)
     except ImportError:
         pass  # mcp extra not installed — UTCP only
 
