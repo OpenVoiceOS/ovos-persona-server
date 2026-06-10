@@ -59,9 +59,23 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.utcp import utcp_router
 
     app.include_router(chat_router)
     app.include_router(ollama_router)
+    app.include_router(utcp_router)
 
+    # Mount MCP server (SSE transport) when the `mcp` package is available.
+    try:
+        from ovos_persona_server.mcp_server import build_mcp_server
+        mcp = build_mcp_server()
+        # FastMCP exposes a Starlette sub-app via sse_app() / streamable_http_app()
+        try:
+            mcp_asgi = mcp.sse_app()
+        except AttributeError:
+            mcp_asgi = mcp.streamable_http_app()
+        app.mount("/mcp", mcp_asgi)
+    except ImportError:
+        pass  # mcp extra not installed — UTCP only
 
     return app

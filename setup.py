@@ -54,6 +54,9 @@ setup(
     license='Apache-2.0',
     packages=['ovos_persona_server'],
     install_requires=required("requirements.txt"),
+    extras_require={
+        "mcp": ["mcp>=1.0.0"],
+    },
     zip_safe=True,
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -71,7 +74,8 @@ setup(
     keywords='plugin lang detect translate OVOS OpenVoiceOS',
     entry_points={
         'console_scripts': [
-            'ovos-persona-server=ovos_persona_server.__main__:main'
+            'ovos-persona-server=ovos_persona_server.__main__:main',
+            'ovos-persona-tools-mcp=ovos_persona_server.mcp_server:_run_stdio',
         ]
     }
 )
