@@ -9,24 +9,22 @@
 | File | Contents |
 |------|----------|
 | [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
-| [a2a.md](a2a.md) | A2A endpoint: enabling, Agent Card, streaming, connecting ovos-a2a-agent |
 | [streaming.md](streaming.md) | SSE streaming format per API |
 | [embeddings.md](embeddings.md) | Embeddings endpoint and solver requirement |
-| [bedrock-models.md](bedrock-models.md) | AWS Bedrock model ID detection and response format selection |
 | [deprecation.md](deprecation.md) | Legacy `/v1/` and `/api/` paths; migration guide |
 
 ## API Surfaces at a Glance
 
-| API | Prefix | Source |
-|-----|--------|--------|
-| OpenAI | `/openai/v1` | `chat.py` |
-| Ollama | `/ollama/api` | `ollama.py` |
-| Anthropic | `/anthropic/v1` | `anthropic.py` |
-| Google Gemini | `/gemini/v1beta/models` | `gemini.py` |
-| Cohere | `/cohere/v1` | `cohere.py` |
-| HuggingFace TGI | `/tgi` | `huggingface_tgi.py` |
-| AWS Bedrock | `/bedrock/model` | `aws_bedrock.py` |
-| A2A | `/a2a` | `a2a.py` (optional) |
+| API | Prefix | Source | Docs |
+|-----|--------|--------|------|
+| OpenAI | `/openai/v1` | `chat.py` | [api-compatibility.md](api-compatibility.md#1-openai----openaiv1) |
+| Ollama | `/ollama/api` | `ollama.py` | [api-compatibility.md](api-compatibility.md#2-ollama----ollamaapi) |
+| Anthropic | `/anthropic/v1` | `anthropic.py` | [api-compatibility.md](api-compatibility.md#3-anthropic----anthropicv1) |
+| Google Gemini | `/gemini/v1beta/models` | `gemini.py` | [api-compatibility.md](api-compatibility.md#4-gemini----geminiv1betamodels) |
+| Cohere | `/cohere/v1` | `cohere.py` | [api-compatibility.md](api-compatibility.md#5-cohere----coherev1) |
+| HuggingFace TGI | `/tgi` | `huggingface_tgi.py` | [api-compatibility.md](api-compatibility.md#6-huggingface-tgi----tgi) |
+| AWS Bedrock | `/bedrock/model` | `aws_bedrock.py` | [api-compatibility.md](api-compatibility.md#7-aws-bedrock----bedrockmodel) |
+| A2A | `/a2a` | `a2a.py` (optional) | see `a2a.py` module docstring |
 
 ## Architecture
 
