@@ -8,6 +8,7 @@ initialization using SQLAlchemy.
 """
 import json
 import os
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,12 +17,16 @@ from ovos_persona import Persona
 import ovos_persona_server.persona
 
 
-def create_persona_app(persona_path: str) -> FastAPI:
+def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
     Args:
         persona_path: Path to a persona JSON file.
+        a2a_base_url: If provided, mounts an A2A-compatible endpoint at ``/a2a``
+                      using this URL as the public base URL in the Agent Card
+                      (e.g. ``http://myhost:8337/a2a``). Requires ``a2a-sdk``
+                      to be installed (``uv pip install 'ovos-persona-server[a2a]'``).
 
     Returns:
         FastAPI: The configured FastAPI application instance.
@@ -68,5 +73,19 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # Legacy deprecated paths — same handlers, with Deprecation + Link headers
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
     add_deprecation_middleware(app)         # injects headers on /v1/* and /api/*
+
+    # Optional A2A endpoint — mounted only when a2a_base_url is provided
+    if a2a_base_url is not None:
+        from ovos_persona_server.a2a import _A2A_AVAILABLE, create_a2a_application
+        if _A2A_AVAILABLE:
+            a2a_starlette = create_a2a_application(persona, a2a_base_url).build()
+            app.mount("/a2a", a2a_starlette)
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "a2a_base_url was set but a2a-sdk is not installed — "
+                "A2A endpoint will not be available. "
+                "Install with: uv pip install 'ovos-persona-server[a2a]'"
+            )
 
     return app
