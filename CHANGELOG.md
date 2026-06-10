@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a3) (2026-06-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.1a3)
+
+**Merged pull requests:**
+
+- chore: migrate setup.py→pyproject.toml, consolidate CI workflows [\#28](https://github.com/OpenVoiceOS/ovos-persona-server/pull/28) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a1...0.5.1a2)
