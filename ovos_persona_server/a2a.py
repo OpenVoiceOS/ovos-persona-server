@@ -116,7 +116,8 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
     """
 
     def __init__(self, persona: "Persona") -> None:
-        """
+        """Initialize the executor with a loaded persona.
+
         Args:
             persona: Loaded OVOS ``Persona`` instance.
         """
