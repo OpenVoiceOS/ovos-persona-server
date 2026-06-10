@@ -70,16 +70,12 @@ def _make_stub_app() -> FastAPI:
         from ovos_persona_server.utcp import utcp_router
         app.include_router(utcp_router)
 
-    # Mount MCP if available; it will expose zero tools but must be reachable
+    # Mount MCP if available using the fixed mount_mcp_on_app helper which
+    # sets streamable_http_path="/" and chains the session manager lifespan.
     try:
-        from ovos_persona_server.mcp_server import build_mcp_server
+        from ovos_persona_server.mcp_server import mount_mcp_on_app
         with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
-            mcp = build_mcp_server()
-        try:
-            mcp_asgi = mcp.sse_app()
-        except AttributeError:
-            mcp_asgi = mcp.streamable_http_app()
-        app.mount("/mcp", mcp_asgi)
+            mount_mcp_on_app(app)
     except ImportError:
         pass
 
@@ -143,6 +139,8 @@ def mcp_server():
 
     with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
         mcp = build_mcp_server()
+    # Standalone: serve MCP at root "/" so the streamable transport default
+    # /mcp path inside FastMCP maps to exactly /mcp on the outer app.
     mcp_app = mcp.streamable_http_app()
     try:
         base_url, server, thread = _start_server(mcp_app, health_path="/mcp")
