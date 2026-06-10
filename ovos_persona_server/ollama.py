@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, JSONResponse
 from ovos_bus_client.session import SessionManager
 from ovos_persona import Persona
+from pydantic import BaseModel, Field
 
 
 from ovos_persona_server.persona import get_default_persona
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # No specific shutdown logic needed for these dependencies currently
 
 
-ollama_router = APIRouter(prefix="/api", tags=["ollama"], lifespan=lifespan)
+ollama_router = APIRouter(prefix="/ollama/api", tags=["ollama"], lifespan=lifespan)
 
 
 def timestamp() -> str:
@@ -371,3 +372,150 @@ async def tags(persona: Persona = Depends(get_default_persona)) -> OllamaTagsRes
         models=[model]
     )
 
+
+@ollama_router.get("/show")
+async def show(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+    """Show model card (Ollama-compatible stub).
+
+    Args:
+        persona: Injected persona instance.
+
+    Returns:
+        Static model card for the loaded persona.
+    """
+    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
+    models_in_config: set = {persona.config.get(s, {}).get("model")
+                             for s in persona.solvers.loaded_modules.keys()}
+    parent_model_str: str = "|".join(filter(None, models_in_config))
+
+    details: OllamaModelDetails = OllamaModelDetails(
+        format="json",
+        family="ovos-persona",
+        families=solvers,
+        parent_model=parent_model_str,
+        parameter_size="",
+        quantization_level="",
+    )
+    model: OllamaModel = OllamaModel(
+        name=persona.name,
+        model=persona.name,
+        digest="sha256:placeholder_digest",
+        size=0,
+        modified_at=timestamp(),
+        details=details,
+    )
+    return JSONResponse(model.model_dump())
+
+
+@ollama_router.get("/ps")
+async def ps(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+    """List running models (Ollama-compatible stub).
+
+    Args:
+        persona: Injected persona instance.
+
+    Returns:
+        Ollama /api/ps format with the loaded persona listed as running.
+    """
+    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
+    models_in_config: set = {persona.config.get(s, {}).get("model")
+                             for s in persona.solvers.loaded_modules.keys()}
+    parent_model_str: str = "|".join(filter(None, models_in_config))
+
+    details: OllamaModelDetails = OllamaModelDetails(
+        format="json",
+        family="ovos-persona",
+        families=solvers,
+        parent_model=parent_model_str,
+        parameter_size="",
+        quantization_level="",
+    )
+    model: OllamaModel = OllamaModel(
+        name=persona.name,
+        model=persona.name,
+        digest="sha256:placeholder_digest",
+        size=0,
+        modified_at=timestamp(),
+        details=details,
+    )
+    return JSONResponse({"models": [model.model_dump()]})
+
+
+class OllamaPullRequest(BaseModel):
+    """Request body for POST /api/pull."""
+
+    model: str = Field(..., min_length=1)
+    insecure: Optional[bool] = None
+    stream: Optional[bool] = None
+
+
+class OllamaPushRequest(BaseModel):
+    """Request body for POST /api/push."""
+
+    model: str = Field(..., min_length=1)
+    insecure: Optional[bool] = None
+    stream: Optional[bool] = None
+
+
+@ollama_router.post("/pull")
+async def pull(request_body: OllamaPullRequest) -> JSONResponse:
+    """Pull a model (Ollama-compatible stub).
+
+    Args:
+        request_body: Pull request with model name (accepted, ignored).
+
+    Returns:
+        Success status stub.
+    """
+    return JSONResponse({"status": "success"})
+
+
+@ollama_router.post("/push")
+async def push(request_body: OllamaPushRequest) -> JSONResponse:
+    """Push a model (Ollama-compatible stub).
+
+    Args:
+        request_body: Push request with model name (accepted, ignored).
+
+    Returns:
+        Success status stub.
+    """
+    return JSONResponse({"status": "success"})
+
+
+@ollama_router.post("/embeddings")
+async def ollama_embeddings(
+        request_body: OllamaEmbedRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> JSONResponse:
+    """Generate embeddings (Ollama-compatible stub).
+
+    Delegates to persona's embeddings solver if available.
+
+    Args:
+        request_body: Ollama embed request with model and input.
+        persona: Injected persona instance.
+
+    Returns:
+        Ollama-format embeddings response or 501 if not supported.
+
+    Raises:
+        HTTPException: 501 if no embeddings solver is configured.
+    """
+    solver_names = list(persona.solvers.loaded_modules.keys())
+    embed_solver = None
+    for name in solver_names:
+        solver = persona.solvers.loaded_modules[name]
+        if hasattr(solver, "get_embeddings"):
+            embed_solver = solver
+            break
+
+    if embed_solver is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="No embeddings solver configured for this persona.",
+        )
+
+    input_text = request_body.input if isinstance(request_body.input, str) else " ".join(request_body.input)
+    vec = embed_solver.get_embeddings(input_text)
+    return JSONResponse(OllamaEmbedResponse(embeddings=[vec]).model_dump())
