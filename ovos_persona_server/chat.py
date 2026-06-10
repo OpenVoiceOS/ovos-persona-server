@@ -29,12 +29,9 @@ from ovos_persona_server.schemas.openai_chat import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
-    """
+    """Ensure the default persona is ready before serving requests."""
     await get_default_persona()
     yield
-    # No specific shutdown logic needed for these dependencies currently
 
 
 chat_router = APIRouter(prefix="/openai/v1", tags=["openai"], lifespan=lifespan)
@@ -49,22 +46,20 @@ async def chat_completions(
         request_body: CreateChatCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles OpenAI-compatible chat completions, supporting both non-streaming and streaming.
+    """Handle OpenAI-compatible chat completions (streaming and non-streaming).
 
-    NOTE: only 'messages' and 'stream' are currently handled, every other parameter is ignored
+    Only ``messages`` and ``stream`` are forwarded to the persona; all other
+    OpenAI parameters are accepted and silently ignored.
 
     Args:
-        request_body (CreateChatCompletionRequest): The request body containing messages and
-                                              other chat completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Chat completion request containing messages and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the persona chat fails.
+        HTTPException: If the persona chat call raises an unexpected exception.
     """
     stream: bool = request_body.stream
     # Convert Pydantic message models to dicts for persona.chat/stream
@@ -123,9 +118,7 @@ async def chat_completions(
                                 detail=f"Persona chat failed: {e}") from e
 
     async def streaming_chat_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams chat completion chunks.
-        """
+        """Yield SSE data events in OpenAI streaming format."""
         # Initial chunk with role
         initial_chunk = CreateChatCompletionStreamResponse(
             id=f"chatcmpl-{completion_id}",
@@ -199,22 +192,21 @@ async def create_completion(
         request_body: CreateCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles legacy OpenAI completions API requests.
+    """Handle legacy OpenAI text-completion API requests.
 
-    NOTE: only 'prompt' and 'stream' are currently handled, every other parameter is ignored
+    Only ``prompt`` and ``stream`` are forwarded to the persona; other
+    parameters are accepted and silently ignored.  Token-array prompts are
+    not supported and return 500.
 
     Args:
-        request_body (CreateCompletionRequest): The request body containing the prompt
-                                                and other completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Completion request with prompt and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the prompt format is invalid or persona completion fails.
+        HTTPException: On unsupported prompt format or persona failure.
     """
     stream: bool = request_body.stream
     prompt: Union[str, List[str], List[int], List[List[int]]] = request_body.prompt
@@ -274,9 +266,7 @@ async def create_completion(
                                 detail=f"Persona completion failed: {e}") from e
 
     async def streaming_completion_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams legacy completion chunks.
-        """
+        """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
             for chunk in persona.stream(messages):

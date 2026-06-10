@@ -35,13 +35,9 @@ from ovos_persona_server.schemas.ollama import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Context manager for the application's lifespan events.
-    Initializes the default persona when the application starts.
-    """
+    """Ensure the default persona is ready before serving requests."""
     await get_default_persona()
     yield
-    # No specific shutdown logic needed for these dependencies currently
 
 
 ollama_router = APIRouter(prefix="/ollama/api", tags=["ollama"], lifespan=lifespan)
@@ -60,30 +56,20 @@ def timestamp() -> str:
 @ollama_router.post("/chat", response_model=OllamaChatResponse, status_code=status.HTTP_200_OK)
 async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depends(get_default_persona)) -> Union[
     JSONResponse, StreamingResponse]:
-    """
-    Handles Ollama-compatible chat requests.
+    """Handle Ollama-compatible chat requests.
 
-    This endpoint processes incoming chat messages, interacts with the persona,
-    and returns a chat completion response, either as a single JSON object
-    or a stream of JSON objects.
-
-    NOTE: Currently, only 'messages' and 'stream' parameters are fully utilized.
-          Other parameters like 'tools', 'think', 'format', 'options', and 'keep_alive'
-          are acknowledged but not actively processed by the underlying persona implementation.
-          The persona's `chat` and `stream` methods are used, which primarily handle text content.
-          Tool calls and image handling via persona are not yet implemented.
+    Only ``messages`` and ``stream`` are forwarded to the persona.  Tool calls,
+    image attachments, and generation options are accepted but not yet processed.
 
     Args:
-        request_body (OllamaChatRequest): The request body containing messages
-                                          and streaming preference.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Ollama chat request.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or NDJSON StreamingResponse.
 
     Raises:
-        HTTPException: If messages are missing or persona chat fails.
+        HTTPException: If messages are empty or the persona call fails.
     """
     messages: List[OllamaChatMessage] = request_body.messages
     stream: bool = request_body.stream
@@ -134,9 +120,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
                                 detail=f"Persona chat failed: {e}") from e
 
     async def streaming_ollama_chat_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams Ollama-compatible chat completion chunks.
-        """
+        """Yield NDJSON lines in Ollama streaming chat format."""
         start_time: float = time.time()
         # Placeholders for metrics in streaming chunks
         streaming_load_duration: int = 0
@@ -191,31 +175,21 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
 @ollama_router.post("/generate", response_model=OllamaChatResponse, status_code=status.HTTP_200_OK)
 async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona = Depends(get_default_persona)) -> \
         Union[JSONResponse, StreamingResponse]:
-    """
-    Handles Ollama-compatible text generation requests.
+    """Handle Ollama-compatible text generation requests.
 
-    This endpoint generates a response for a given prompt using the persona,
-    returning either a single JSON object or a stream of JSON objects.
-
-    NOTE: Currently, 'prompt', 'system', 'suffix', and 'stream' parameters are primarily utilized.
-          Other parameters like 'images', 'think', 'format', 'options', 'template', 'raw',
-          'keep_alive', and 'context' are acknowledged but not actively processed by the
-          underlying persona implementation. The persona's `chat` and `stream` methods
-          are used, which primarily handle text content. Multimodal input (images)
-          and advanced generation options are not yet implemented at the persona level.
-          The 'context' parameter is deprecated in Ollama API and not used here.
+    ``prompt``, ``system``, and ``stream`` are forwarded to the persona.
+    Images, think-tags, format, options, template, raw, keep_alive, and context
+    are accepted but not yet processed.
 
     Args:
-        request_body (OllamaGenerateRequest): The request body containing the prompt
-                                              and other generation parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Ollama generate request.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or NDJSON StreamingResponse.
 
     Raises:
-        HTTPException: If the prompt is missing or persona generation fails.
+        HTTPException: If prompt is empty or the persona call fails.
     """
     prompt: str = request_body.prompt
     stream: bool = request_body.stream
@@ -272,9 +246,7 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
                                 detail=f"Persona generation failed: {e}") from e
 
     async def streaming_ollama_generate_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams Ollama-compatible generation chunks.
-        """
+        """Yield NDJSON lines in Ollama streaming generate format."""
         start_time: float = time.time()
         # Placeholders for metrics in streaming chunks
         streaming_load_duration: int = 0
@@ -327,18 +299,16 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
 
 @ollama_router.get("/tags", response_model=OllamaTagsResponse, status_code=status.HTTP_200_OK)
 async def tags(persona: Persona = Depends(get_default_persona)) -> OllamaTagsResponse:
-    """
-    Returns a list of available Ollama-compatible models.
+    """Return a list of available Ollama-compatible models.
 
-    This endpoint provides information about the models that the persona server
-    can expose, adhering to the Ollama API's /api/tags endpoint specification.
-    Currently, it reflects the loaded persona itself as a "model".
+    Exposes the loaded persona as a single model entry; solver modules appear
+    as model families.
 
     Args:
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        persona: Injected persona instance.
 
     Returns:
-        OllamaTagsResponse: A response containing a list of available models.
+        Response containing the list of models.
     """
 
     # Get loaded solver modules from the persona, which can be thought of as "families"
