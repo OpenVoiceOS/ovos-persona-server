@@ -61,6 +61,7 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.cohere import cohere_router
     from ovos_persona_server.deprecated_routers import (
         add_deprecation_middleware,
         register_deprecated_routes,
@@ -69,6 +70,7 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     # Canonical prefixed routers
     app.include_router(chat_router)         # /openai/v1/...
     app.include_router(ollama_router)       # /ollama/api/...
+    app.include_router(cohere_router)       # /cohere/v1/...
 
     # Legacy deprecated paths — same handlers, with Deprecation + Link headers
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
