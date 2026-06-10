@@ -56,6 +56,7 @@ setup(
     install_requires=required("requirements.txt"),
     extras_require={
         "mcp": ["mcp>=1.0.0"],
+        "test": ["pytest", "pytest-cov", "httpx", "uvicorn"],
     },
     zip_safe=True,
     classifiers=[
