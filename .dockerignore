@@ -1,0 +1,9 @@
+.git
+.github
+__pycache__
+*.egg-info
+tests
+docs
+config
+docker-compose.yml
+Dockerfile
