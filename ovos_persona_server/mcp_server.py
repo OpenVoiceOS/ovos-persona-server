@@ -96,6 +96,23 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
     return mcp
 
 
+
+def mount_mcp_on_app(app, path="/mcp", name="ovos-persona-tools"):
+    """Mount MCP streamable-HTTP transport at path with lifespan chaining."""
+    from contextlib import asynccontextmanager
+    mcp = build_mcp_server(name=name)
+    mcp.settings.streamable_http_path = "/"
+    app.mount(path, mcp.streamable_http_app())
+    _orig = app.router.lifespan_context
+    @asynccontextmanager
+    async def _wrap(h):
+        async with _orig(h):
+            async with mcp.session_manager.run():
+                yield
+    app.router.lifespan_context = _wrap
+    LOG.info("MCP server mounted at %s (streamable-HTTP)", path)
+
+
 def _run_stdio() -> None:
     """Entry point for the ``ovos-persona-tools-mcp`` console script (stdio)."""
     server = build_mcp_server()
