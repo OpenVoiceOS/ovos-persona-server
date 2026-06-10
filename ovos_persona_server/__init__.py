@@ -61,6 +61,7 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.utcp import utcp_router
     from ovos_persona_server.deprecated_routers import (
         add_deprecation_middleware,
         register_deprecated_routes,
@@ -69,6 +70,7 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     # Canonical prefixed routers
     app.include_router(chat_router)         # /openai/v1/...
     app.include_router(ollama_router)       # /ollama/api/...
+    app.include_router(utcp_router)
 
     # Legacy deprecated paths — same handlers, with Deprecation + Link headers
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
@@ -87,5 +89,18 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
                 "A2A endpoint will not be available. "
                 "Install with: uv pip install 'ovos-persona-server[a2a]'"
             )
+
+    # Mount MCP server (SSE transport) when the `mcp` package is available.
+    try:
+        from ovos_persona_server.mcp_server import build_mcp_server
+        mcp = build_mcp_server()
+        # FastMCP exposes a Starlette sub-app via sse_app() / streamable_http_app()
+        try:
+            mcp_asgi = mcp.sse_app()
+        except AttributeError:
+            mcp_asgi = mcp.streamable_http_app()
+        app.mount("/mcp", mcp_asgi)
+    except ImportError:
+        pass  # mcp extra not installed — UTCP only
 
     return app
