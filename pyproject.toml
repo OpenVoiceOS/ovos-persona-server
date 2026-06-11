@@ -22,7 +22,9 @@ keywords = [
 dependencies = [
     "fastapi",
     "ovos-persona",
+    "ovos-workshop",
     "pydantic",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]
