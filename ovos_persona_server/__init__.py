@@ -8,7 +8,6 @@ initialization using SQLAlchemy.
 """
 import json
 import os
-from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,9 +21,7 @@ def create_persona_app(persona_path: str) -> FastAPI:
     Creates and configures the FastAPI application for the Persona Server.
 
     Args:
-        persona_path (Optional[str]): Optional path to a persona JSON file.
-                                      If provided, it overrides the default
-                                      persona path from settings or environment.
+        persona_path: Path to a persona JSON file.
 
     Returns:
         FastAPI: The configured FastAPI application instance.
@@ -59,9 +56,17 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.deprecated_routers import (
+        add_deprecation_middleware,
+        register_deprecated_routes,
+    )
 
-    app.include_router(chat_router)
-    app.include_router(ollama_router)
+    # Canonical prefixed routers
+    app.include_router(chat_router)         # /openai/v1/...
+    app.include_router(ollama_router)       # /ollama/api/...
 
+    # Legacy deprecated paths — same handlers, with Deprecation + Link headers
+    register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
+    add_deprecation_middleware(app)         # injects headers on /v1/* and /api/*
 
     return app
