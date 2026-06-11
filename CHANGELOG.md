@@ -1,11 +1,16 @@
 # Changelog
 
-## [0.5.1a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a3) (2026-06-10)
+## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.1a3)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.2a1)
+
+**Closed issues:**
+
+- PyPI release broken: wheel omits schemas subpackage + undeclared deps + wrong python floor [\#39](https://github.com/OpenVoiceOS/ovos-persona-server/issues/39)
 
 **Merged pull requests:**
 
+- fix: declare uvicorn+ovos-workshop deps; restore py3.9 f-string compat in chat.py [\#40](https://github.com/OpenVoiceOS/ovos-persona-server/pull/40) ([JarbasAl](https://github.com/JarbasAl))
 - chore: migrate setup.py→pyproject.toml, consolidate CI workflows [\#28](https://github.com/OpenVoiceOS/ovos-persona-server/pull/28) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
