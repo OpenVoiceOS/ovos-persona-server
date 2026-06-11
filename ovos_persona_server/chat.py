@@ -282,35 +282,37 @@ async def create_completion(
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
-                    yield f"data: {json.dumps({
-                        'id': f"cmpl-{completion_id}",
+                    chunk_data = {
+                        'id': "cmpl-" + completion_id,
                         'object': "text_completion",
                         'created': completion_timestamp,
                         'model': request_body.model,
                         'choices': [{
                             'text': chunk,
                             'index': 0,
-                            'logprobs': None,  # Not supported in this basic implementation
+                            'logprobs': None,
                             'finish_reason': None
                         }]
-                    })}\n\n"
+                    }
+                    yield "data: " + json.dumps(chunk_data) + "\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason
-        yield f"data: {json.dumps({
-            'id': f"cmpl-{completion_id}",
+        final_data = {
+            'id': "cmpl-" + completion_id,
             'object': "text_completion",
             'created': completion_timestamp,
             'model': request_body.model,
             'choices': [{
-                'text': "",  # Empty text for the final chunk
+                'text': "",
                 'index': 0,
                 'logprobs': None,
                 'finish_reason': FinishReason.STOP.value
             }]
-        })}\n\n"
+        }
+        yield "data: " + json.dumps(final_data) + "\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(streaming_completion_response(), media_type="text/event-stream")
