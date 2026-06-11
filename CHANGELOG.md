@@ -1,12 +1,33 @@
 # Changelog
 
-## [0.4.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.1a1) (2025-10-17)
+## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0...0.4.1a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.2a1)
+
+**Closed issues:**
+
+- PyPI release broken: wheel omits schemas subpackage + undeclared deps + wrong python floor [\#39](https://github.com/OpenVoiceOS/ovos-persona-server/issues/39)
 
 **Merged pull requests:**
 
-- refactor: migrate to fastapi [\#14](https://github.com/OpenVoiceOS/ovos-persona-server/pull/14) ([JarbasAl](https://github.com/JarbasAl))
+- fix: declare uvicorn+ovos-workshop deps; restore py3.9 f-string compat in chat.py [\#40](https://github.com/OpenVoiceOS/ovos-persona-server/pull/40) ([JarbasAl](https://github.com/JarbasAl))
+- chore: migrate setup.py→pyproject.toml, consolidate CI workflows [\#28](https://github.com/OpenVoiceOS/ovos-persona-server/pull/28) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a1...0.5.1a2)
+
+**Merged pull requests:**
+
+- chore\(deps\): update dependency python to 3.14 [\#21](https://github.com/OpenVoiceOS/ovos-persona-server/pull/21) ([renovate[bot]](https://github.com/apps/renovate))
+
+## [0.5.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a1) (2025-12-18)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.0...0.5.1a1)
+
+**Merged pull requests:**
+
+- chore: Configure Renovate [\#19](https://github.com/OpenVoiceOS/ovos-persona-server/pull/19) ([renovate[bot]](https://github.com/apps/renovate))
 
 
 
