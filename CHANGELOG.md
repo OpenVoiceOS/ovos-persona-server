@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a2) (2026-06-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a1...0.5.2a2)
+
+**Merged pull requests:**
+
+- refactor: vendor-prefixed OpenAI/Ollama routers + deprecated legacy paths [\#29](https://github.com/OpenVoiceOS/ovos-persona-server/pull/29) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.2a1)
