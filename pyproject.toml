@@ -22,6 +22,7 @@ keywords = [
 dependencies = [
     "fastapi",
     "ovos-persona",
+    "ovos-plugin-manager>=2.4.0a1",  # AgentTool/ToolBox templates + AGENT_TOOLBOX
     "ovos-workshop",
     "pydantic",
     "uvicorn",
