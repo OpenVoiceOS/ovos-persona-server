@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.11.0a1...0.12.0a1)
+
+**Merged pull requests:**
+
+- feat: expose OPM tool plugins via MCP + UTCP [\#37](https://github.com/OpenVoiceOS/ovos-persona-server/pull/37) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.11.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.11.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.10.0a1...0.11.0a1)
