@@ -11,11 +11,12 @@ import random
 import string
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Dict, Any, Union
+from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, status, Depends, FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
+from pydantic import BaseModel, Field
 
 from ovos_persona_server.persona import get_default_persona
 from ovos_persona_server.schemas.openai_chat import (
@@ -28,42 +29,37 @@ from ovos_persona_server.schemas.openai_chat import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
-    """
+    """Ensure the default persona is ready before serving requests."""
     await get_default_persona()
     yield
-    # No specific shutdown logic needed for these dependencies currently
 
 
-chat_router = APIRouter(prefix="/v1", tags=["openai"], lifespan=lifespan)
+chat_router = APIRouter(prefix="/openai/v1", tags=["openai"], lifespan=lifespan)
 
 
 @chat_router.post(
     "/chat/completions",
-    response_model=Union[CreateChatCompletionResponse, CreateChatCompletionStreamResponse],
+    response_model=None,
     status_code=status.HTTP_200_OK
 )
 async def chat_completions(
         request_body: CreateChatCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles OpenAI-compatible chat completions, supporting both non-streaming and streaming.
+    """Handle OpenAI-compatible chat completions (streaming and non-streaming).
 
-    NOTE: only 'messages' and 'stream' are currently handled, every other parameter is ignored
+    Only ``messages`` and ``stream`` are forwarded to the persona; all other
+    OpenAI parameters are accepted and silently ignored.
 
     Args:
-        request_body (CreateChatCompletionRequest): The request body containing messages and
-                                              other chat completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Chat completion request containing messages and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the persona chat fails.
+        HTTPException: If the persona chat call raises an unexpected exception.
     """
     stream: bool = request_body.stream
     # Convert Pydantic message models to dicts for persona.chat/stream
@@ -122,9 +118,7 @@ async def chat_completions(
                                 detail=f"Persona chat failed: {e}") from e
 
     async def streaming_chat_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams chat completion chunks.
-        """
+        """Yield SSE data events in OpenAI streaming format."""
         # Initial chunk with role
         initial_chunk = CreateChatCompletionStreamResponse(
             id=f"chatcmpl-{completion_id}",
@@ -193,27 +187,26 @@ async def chat_completions(
     return StreamingResponse(streaming_chat_response(), media_type="text/event-stream")
 
 
-@chat_router.post("/completions", response_model=CreateCompletionResponse, status_code=status.HTTP_200_OK)
+@chat_router.post("/completions", response_model=None, status_code=status.HTTP_200_OK)
 async def create_completion(
         request_body: CreateCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles legacy OpenAI completions API requests.
+    """Handle legacy OpenAI text-completion API requests.
 
-    NOTE: only 'prompt' and 'stream' are currently handled, every other parameter is ignored
+    Only ``prompt`` and ``stream`` are forwarded to the persona; other
+    parameters are accepted and silently ignored.  Token-array prompts are
+    not supported and return 500.
 
     Args:
-        request_body (CreateCompletionRequest): The request body containing the prompt
-                                                and other completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Completion request with prompt and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the prompt format is invalid or persona completion fails.
+        HTTPException: On unsupported prompt format or persona failure.
     """
     stream: bool = request_body.stream
     prompt: Union[str, List[str], List[int], List[List[int]]] = request_body.prompt
@@ -273,16 +266,14 @@ async def create_completion(
                                 detail=f"Persona completion failed: {e}") from e
 
     async def streaming_completion_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams legacy completion chunks.
-        """
+        """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
             for chunk in persona.stream(messages):
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
-                    yield f"data: {json.dumps({
+                    chunk_data = {
                         'id': f"cmpl-{completion_id}",
                         'object': "text_completion",
                         'created': completion_timestamp,
@@ -290,27 +281,109 @@ async def create_completion(
                         'choices': [{
                             'text': chunk,
                             'index': 0,
-                            'logprobs': None,  # Not supported in this basic implementation
+                            'logprobs': None,
                             'finish_reason': None
                         }]
-                    })}\n\n"
+                    }
+                    yield f"data: {json.dumps(chunk_data)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason
-        yield f"data: {json.dumps({
+        final_completion_data = {
             'id': f"cmpl-{completion_id}",
             'object': "text_completion",
             'created': completion_timestamp,
             'model': request_body.model,
             'choices': [{
-                'text': "",  # Empty text for the final chunk
+                'text': "",
                 'index': 0,
                 'logprobs': None,
                 'finish_reason': FinishReason.STOP.value
             }]
-        })}\n\n"
+        }
+        yield f"data: {json.dumps(final_completion_data)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(streaming_completion_response(), media_type="text/event-stream")
+
+
+@chat_router.get("/models")
+async def list_models(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+    """List available models (OpenAI-compatible).
+
+    Args:
+        persona: Injected persona instance.
+
+    Returns:
+        OpenAI-format models list containing the loaded persona.
+    """
+    return JSONResponse({
+        "object": "list",
+        "data": [
+            {
+                "id": persona.name,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "ovos",
+            }
+        ],
+    })
+
+
+class OpenAIEmbeddingsRequest(BaseModel):
+    """Request body for POST /v1/embeddings."""
+
+    model: str = Field(default="text-embedding-ada-002", min_length=1)
+    input: Union[str, List[str]] = Field(..., description="Text or list of texts to embed")
+    encoding_format: Literal["float", "base64"] = "float"
+    dimensions: Optional[int] = Field(default=None, gt=0)
+    user: Optional[str] = None
+
+
+@chat_router.post("/embeddings")
+async def embeddings(
+        request_body: OpenAIEmbeddingsRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> JSONResponse:
+    """Generate embeddings (OpenAI-compatible stub).
+
+    Delegates to persona's embeddings solver if available.
+
+    Args:
+        request_body: OpenAI embeddings request with model and input.
+        persona: Injected persona instance.
+
+    Returns:
+        Embeddings response or 501 if not supported.
+
+    Raises:
+        HTTPException: 501 if no embeddings solver is configured.
+    """
+    solver_names = list(persona.solvers.loaded_modules.keys())
+    embed_solver = None
+    for name in solver_names:
+        solver = persona.solvers.loaded_modules[name]
+        if hasattr(solver, "get_embeddings"):
+            embed_solver = solver
+            break
+
+    if embed_solver is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="No embeddings solver configured for this persona.",
+        )
+
+    texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
+    data = []
+    for i, t in enumerate(texts):
+        vec = embed_solver.get_embeddings(t)
+        data.append({"object": "embedding", "embedding": vec, "index": i})
+
+    return JSONResponse({
+        "object": "list",
+        "data": data,
+        "model": request_body.model,
+        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+    })
