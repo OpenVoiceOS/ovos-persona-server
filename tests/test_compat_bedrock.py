@@ -229,6 +229,26 @@ class TestBedrockInvoke:
 # /invoke-with-response-stream endpoint
 # ---------------------------------------------------------------------------
 
+def _decode_eventstream(content: bytes) -> list:
+    """Decode vnd.amazon.eventstream bytes into model-specific chunk dicts.
+
+    Uses botocore's own decoder so the test verifies the exact binary framing
+    boto3 consumes (prelude/headers/payload with CRC32 checksums), then unwraps
+    the base64-encoded chunk each event carries under the ``bytes`` key.
+    """
+    import base64
+
+    from botocore.eventstream import EventStreamBuffer
+
+    buffer = EventStreamBuffer()
+    buffer.add_data(content)
+    chunks = []
+    for message in buffer:
+        payload = json.loads(message.payload)
+        chunks.append(json.loads(base64.b64decode(payload["bytes"])))
+    return chunks
+
+
 class TestBedrockInvokeStream:
     def setup_method(self):
         self.app, self.mock_persona = _make_app(stream_yields=["chunk1 ", "chunk2"])
@@ -246,25 +266,23 @@ class TestBedrockInvokeStream:
             "/bedrock/model/anthropic.claude-3/invoke-with-response-stream",
             json={"messages": [{"role": "user", "content": "hi"}]},
         )
-        assert "text/event-stream" in resp.headers.get("content-type", "")
+        assert "application/vnd.amazon.eventstream" in resp.headers.get("content-type", "")
 
     def test_stream_has_output_text(self):
         resp = self.client.post(
             "/bedrock/model/anthropic.claude-3/invoke-with-response-stream",
             json={"messages": [{"role": "user", "content": "hi"}]},
         )
-        assert "outputText" in resp.text
+        chunks = _decode_eventstream(resp.content)
+        assert any("outputText" in c for c in chunks)
 
     def test_stream_final_event_has_completion_reason(self):
         resp = self.client.post(
             "/bedrock/model/anthropic.claude-3/invoke-with-response-stream",
             json={"messages": [{"role": "user", "content": "hi"}]},
         )
-        events = []
-        for line in resp.text.splitlines():
-            if line.startswith("data:"):
-                events.append(json.loads(line[5:]))
-        final = next((e for e in reversed(events) if e.get("completionReason")), None)
+        chunks = _decode_eventstream(resp.content)
+        final = next((c for c in reversed(chunks) if c.get("completionReason")), None)
         assert final is not None
         assert final["completionReason"] == "FINISH"
 
@@ -275,7 +293,8 @@ class TestBedrockInvokeStream:
             json={"messages": [{"role": "user", "content": "hi"}]},
         )
         assert resp.status_code == 200
-        assert "error" in resp.text
+        chunks = _decode_eventstream(resp.content)
+        assert any("error" in c for c in chunks)
 
 
 # ---------------------------------------------------------------------------
