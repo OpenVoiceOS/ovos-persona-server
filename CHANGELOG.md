@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.7.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.6.0a1...0.7.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): Anthropic Claude-compatible endpoints \(/anthropic/v1\) [\#30](https://github.com/OpenVoiceOS/ovos-persona-server/pull/30) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
