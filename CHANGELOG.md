@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
+
+**Merged pull requests:**
+
+- feat: A2A server endpoint \(/a2a\) with agent card + executor [\#35](https://github.com/OpenVoiceOS/ovos-persona-server/pull/35) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.5.2a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a2) (2026-06-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a1...0.5.2a2)
