@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a2) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a1...0.12.0a2)
+
+**Merged pull requests:**
+
+- docs: user-facing documentation for all API surfaces [\#36](https://github.com/OpenVoiceOS/ovos-persona-server/pull/36) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.11.0a1...0.12.0a1)
