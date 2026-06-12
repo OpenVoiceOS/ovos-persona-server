@@ -388,7 +388,7 @@ class TestOVOSPersonaAgentExecutor:
         executor, mod, classes, mock_persona = self._make_executor(stubs)
         ctx = self._make_context(classes, "Tell me a story.")
         eq = self._make_event_queue(classes)
-        asyncio.get_event_loop().run_until_complete(executor.execute(ctx, eq))
+        asyncio.run(executor.execute(ctx, eq))
         mock_persona.stream.assert_called_once()
         call_args = mock_persona.stream.call_args[0][0]
         assert call_args[0]["role"] == "user"
@@ -399,7 +399,7 @@ class TestOVOSPersonaAgentExecutor:
         executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["hello", "world"])
         ctx = self._make_context(classes)
         eq = self._make_event_queue(classes)
-        asyncio.get_event_loop().run_until_complete(executor.execute(ctx, eq))
+        asyncio.run(executor.execute(ctx, eq))
         # Should have 2 artifact events + 1 status event
         assert eq.enqueue_event.call_count == 3
 
@@ -408,7 +408,7 @@ class TestOVOSPersonaAgentExecutor:
         executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["hi"])
         ctx = self._make_context(classes)
         eq = self._make_event_queue(classes)
-        asyncio.get_event_loop().run_until_complete(executor.execute(ctx, eq))
+        asyncio.run(executor.execute(ctx, eq))
         # Last enqueued event should be TaskStatusUpdateEvent with completed state
         last_call_args = eq.enqueue_event.call_args_list[-1][0][0]
         assert last_call_args.status.state == "completed"
@@ -419,7 +419,7 @@ class TestOVOSPersonaAgentExecutor:
         executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["", "hello", ""])
         ctx = self._make_context(classes)
         eq = self._make_event_queue(classes)
-        asyncio.get_event_loop().run_until_complete(executor.execute(ctx, eq))
+        asyncio.run(executor.execute(ctx, eq))
         # Only 1 artifact event (non-empty chunk) + 1 status event
         assert eq.enqueue_event.call_count == 2
 
@@ -428,7 +428,7 @@ class TestOVOSPersonaAgentExecutor:
         executor, mod, classes, _ = self._make_executor(stubs)
         ctx = self._make_context(classes)
         eq = self._make_event_queue(classes)
-        asyncio.get_event_loop().run_until_complete(executor.cancel(ctx, eq))
+        asyncio.run(executor.cancel(ctx, eq))
         eq.enqueue_event.assert_called_once()
         event = eq.enqueue_event.call_args[0][0]
         assert event.status.state == "canceled"
