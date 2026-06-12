@@ -62,6 +62,9 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
     from ovos_persona_server.huggingface_tgi import tgi_router
+    from ovos_persona_server.aws_bedrock import bedrock_router
+    from ovos_persona_server.gemini import gemini_router
+    from ovos_persona_server.anthropic import anthropic_router
     from ovos_persona_server.deprecated_routers import (
         add_deprecation_middleware,
         register_deprecated_routes,
@@ -71,6 +74,9 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     app.include_router(chat_router)         # /openai/v1/...
     app.include_router(ollama_router)       # /ollama/api/...
     app.include_router(tgi_router)          # /tgi/...
+    app.include_router(bedrock_router)      # /bedrock/model/...
+    app.include_router(gemini_router)       # /gemini/v1beta/models/...
+    app.include_router(anthropic_router)    # /anthropic/v1/...
 
     # Legacy deprecated paths — same handlers, with Deprecation + Link headers
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
