@@ -1,9 +1,12 @@
 # Licensed under the Apache License, Version 2.0
 """AWS Bedrock-compatible API endpoints."""
+import base64
 import json
 import random
 import string
+import struct
 import time
+import zlib
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -15,9 +18,63 @@ from ovos_persona_server.persona import get_default_persona
 
 bedrock_router = APIRouter(prefix="/bedrock/model", tags=["aws-bedrock"])
 
+EVENTSTREAM_MEDIA_TYPE = "application/vnd.amazon.eventstream"
+
 
 def _new_id() -> str:
     return "".join(random.choices(string.ascii_letters + string.digits, k=32))
+
+
+def _encode_eventstream_message(payload: bytes, headers: Dict[str, str]) -> bytes:
+    """Encode one AWS event-stream (vnd.amazon.eventstream) frame.
+
+    The binary framing is what botocore's response stream parser expects, so
+    boto3's ``invoke_model_with_response_stream`` can consume the output. Each
+    frame is ``prelude | prelude_crc | headers | payload | message_crc`` with
+    CRC32 checksums over the prelude and the whole message.
+
+    Args:
+        payload: Raw payload bytes for the frame.
+        headers: String-valued event-stream headers (e.g. ``:event-type``).
+
+    Returns:
+        The encoded binary frame.
+    """
+    encoded_headers = b""
+    for name, value in headers.items():
+        name_bytes = name.encode("utf-8")
+        value_bytes = value.encode("utf-8")
+        # header: name_len(1) | name | value_type(1, 7=string) | value_len(2) | value
+        encoded_headers += struct.pack("B", len(name_bytes)) + name_bytes
+        encoded_headers += struct.pack("B", 7) + struct.pack(">H", len(value_bytes)) + value_bytes
+
+    total_length = 4 + 4 + 4 + len(encoded_headers) + len(payload) + 4
+    prelude = struct.pack(">II", total_length, len(encoded_headers))
+    prelude_crc = struct.pack(">I", zlib.crc32(prelude) & 0xFFFFFFFF)
+    message = prelude + prelude_crc + encoded_headers + payload
+    message_crc = struct.pack(">I", zlib.crc32(message) & 0xFFFFFFFF)
+    return message + message_crc
+
+
+def _bedrock_chunk_frame(chunk: Dict[str, Any]) -> bytes:
+    """Wrap a model-specific chunk dict as a Bedrock ``chunk`` event frame.
+
+    Bedrock streams each chunk as an event whose JSON payload carries the
+    base64-encoded, model-specific chunk under a ``bytes`` key.
+
+    Args:
+        chunk: The model-specific chunk body (decoded by the client).
+
+    Returns:
+        The encoded event-stream frame.
+    """
+    payload = json.dumps(
+        {"bytes": base64.b64encode(json.dumps(chunk).encode("utf-8")).decode("utf-8")}
+    ).encode("utf-8")
+    return _encode_eventstream_message(
+        payload,
+        {":event-type": "chunk", ":content-type": "application/json", ":message-type": "event"},
+    )
 
 
 def _extract_messages(body: Dict[str, Any], model_id: str) -> List[Dict[str, str]]:
@@ -171,20 +228,27 @@ async def invoke_stream(
     body = await request.json()
     messages = _extract_messages(body, model_id)
 
-    async def _stream() -> AsyncGenerator[str, None]:
+    async def _stream() -> AsyncGenerator[bytes, None]:
         accumulated = []
         try:
             for chunk in persona.stream(messages):
                 if chunk:
                     accumulated.append(chunk)
-                    yield f"data:{json.dumps({'outputText': chunk, 'index': 0, 'totalOutputTextTokenCount': None})}\n\n"
+                    yield _bedrock_chunk_frame(
+                        {"outputText": chunk, "index": 0, "totalOutputTextTokenCount": None}
+                    )
         except Exception as exc:
-            yield f"data:{json.dumps({'error': str(exc)})}\n\n"
+            yield _bedrock_chunk_frame({"error": str(exc)})
             return
         full_text = "".join(accumulated)
-        yield f"data:{json.dumps({'outputText': '', 'index': 0, 'totalOutputTextTokenCount': len(full_text.split()), 'completionReason': 'FINISH'})}\n\n"
+        yield _bedrock_chunk_frame({
+            "outputText": "",
+            "index": 0,
+            "totalOutputTextTokenCount": len(full_text.split()),
+            "completionReason": "FINISH",
+        })
 
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+    return StreamingResponse(_stream(), media_type=EVENTSTREAM_MEDIA_TYPE)
 
 
 class BedrockConverseContentBlock(BaseModel):
