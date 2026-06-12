@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.9.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.8.0a1...0.9.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): AWS Bedrock-compatible endpoints \(/bedrock/model\) [\#34](https://github.com/OpenVoiceOS/ovos-persona-server/pull/34) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.8.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.8.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.7.0a1...0.8.0a1)
