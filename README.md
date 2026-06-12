@@ -1,16 +1,29 @@
-# Persona Server
+# ovos-persona-server
 
-## Running
+A single HTTP server that exposes one OVOS `Persona` as **eight concurrent API surfaces** — so any LLM client (OpenAI SDK, LangChain, Ollama tools, Anthropic SDK, Google Gemini SDK, Cohere SDK, HuggingFace TGI client, AWS Bedrock client, or any A2A agent) can talk to your OVOS persona without changes.
 
-`$ ovos-persona-server --persona rivescript_bot.json`
+---
 
-## Personas
+## Table of Contents
 
-personas don't need to use LLMs, you don't need a beefy GPU to use ovos-persona, find solver plugins [here](https://github.com/OpenVoiceOS?q=solver&type=all)
+- [What is a Persona?](#what-is-a-persona)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [API Surfaces](#api-surfaces)
+- [A2A Endpoint](#a2a-endpoint)
+- [Persona Config Examples](#persona-config-examples)
+- [Streaming](#streaming)
+- [Embeddings](#embeddings)
+- [Authentication](#authentication)
+- [Troubleshooting](#troubleshooting)
 
-some repos and skills also provide solvers, such as ovos-classifiers (wordnet), skill-ddg, skill-wikipedia and skill-wolfie
+---
 
-```
+## What is a Persona?
+
+An OVOS Persona is a JSON file that chains together one or more **solver plugins**. Solvers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
+
+```json
 {
   "name": "OldSchoolBot",
   "solvers": [
@@ -21,21 +34,200 @@ some repos and skills also provide solvers, such as ovos-classifiers (wordnet), 
     "ovos-solver-rivescript-plugin",
     "ovos-solver-failure-plugin"
   ],
-  "ovos-solver-plugin-wolfram-alpha": {"appid": "Y7353-9HQAAL8KKA"}
+  "ovos-solver-plugin-wolfram-alpha": { "appid": "YOUR_API_KEY" }
 }
 ```
 
-this persona would search ddg api / wikipedia for "what is"/"tell me about" questions,
-falling back to wordnet when offline for dictionary look up,
-and finally rivescript for general chitchat,
-we also add the failure solver to be sure the persona always says something
+Find solver plugins at [github.com/OpenVoiceOS](https://github.com/OpenVoiceOS?q=solver).
 
-wolfram alpha illustrates how to pass solver configs, it has a requirement for an API key
+---
 
-search/knowledge base solvers can be used together with LLM solvers to ensure factual answers and act as a tool/internet access layer,
-in the example above you would typically replace rivescript with a LLM.
+## Installation
 
-Some solvers may also use other solvers internally, such as a [MOS (Mixture Of Solvers)](https://github.com/TigreGotico/ovos-MoS)
+```bash
+# Base server (no A2A)
+pip install ovos-persona-server
+
+# With A2A server support
+pip install 'ovos-persona-server[a2a]'
+```
+
+With `uv` (recommended in OVOS workspaces):
+
+```bash
+uv pip install 'ovos-persona-server[a2a]'
+```
+
+---
+
+## Quick Start
+
+```bash
+# Start serving a persona on port 8337
+ovos-persona-server --persona /path/to/my-persona.json
+
+# Also expose it as an A2A agent
+ovos-persona-server \
+  --persona /path/to/my-persona.json \
+  --a2a-base-url http://localhost:8337/a2a
+```
+
+The server binds to `0.0.0.0:8337` by default. Visit `http://localhost:8337/docs` for the interactive API reference (Swagger UI).
+
+---
+
+## API Surfaces
+
+Every API is served on a vendor-prefixed path so multiple clients can coexist without conflict.
+
+| API | Prefix | Key endpoints |
+|-----|--------|---------------|
+| OpenAI | `/openai/v1` | `POST /chat/completions`, `POST /completions`, `GET /models`, `POST /embeddings` |
+| Ollama | `/ollama/api` | `POST /chat`, `POST /generate`, `GET /tags`, `POST /embeddings` |
+| Anthropic | `/anthropic/v1` | `POST /messages` |
+| Google Gemini | `/gemini/v1beta/models` | `POST /{model}:generateContent`, `POST /{model}:streamGenerateContent` |
+| Cohere | `/cohere/v1` | `POST /chat` |
+| HuggingFace TGI | `/tgi` | `POST /generate`, `POST /generate_stream` |
+| AWS Bedrock | `/bedrock/model` | `POST /{model}/invoke`, `POST /{model}/invoke-with-response-stream` |
+| A2A | `/a2a` | `GET /.well-known/agent.json`, `POST /` |
+
+### Deprecated legacy paths
+
+For backwards compatibility, `/v1/...` maps to `/openai/v1/...` and `/api/...` maps to `/ollama/api/...`. These paths send `Deprecation` and `Link` response headers and will be removed in a future major version. Migrate to the prefixed paths.
+
+### Quick test with curl
+
+```bash
+# OpenAI-compatible chat
+curl -s http://localhost:8337/openai/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"","messages":[{"role":"user","content":"hello"}]}' \
+  | python3 -m json.tool
+
+# Ollama-compatible chat
+curl -s http://localhost:8337/ollama/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"","messages":[{"role":"user","content":"hello"}]}'
+```
+
+---
+
+## A2A Endpoint
+
+`ovos-persona-server` can expose your persona as a standard [A2A](https://google.github.io/A2A/) agent server, enabling any A2A client to interact with it — including **ovos-a2a-agent** running on another OVOS instance.
+
+### Enable A2A
+
+```bash
+ovos-persona-server \
+  --persona my-persona.json \
+  --a2a-base-url http://myhost:8337/a2a
+```
+
+The `--a2a-base-url` flag:
+- Activates the A2A endpoint at `/a2a`.
+- Sets the `url` field in the Agent Card returned at `GET /a2a/.well-known/agent.json`.
+- Must be the **publicly reachable** URL of the `/a2a` mount — this is what A2A clients use to discover the server.
+
+### Verify
+
+```bash
+# Fetch the Agent Card
+curl http://localhost:8337/a2a/.well-known/agent.json | python3 -m json.tool
+
+# Send a message
+curl -X POST http://localhost:8337/a2a/ \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "message/send",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [{"kind": "text", "text": "hello"}]
+      }
+    }
+  }'
+```
+
+### Connecting ovos-a2a-agent to this server
+
+On another OVOS instance:
+
+```json
+{
+  "name": "remote-persona",
+  "chat_module": "ovos-a2a-agent",
+  "ovos-a2a-agent": {
+    "url": "http://myhost:8337/a2a"
+  }
+}
+```
+
+### A2A streaming
+
+The A2A endpoint supports `message/stream`. Persona sentence chunks are emitted as `TaskArtifactUpdateEvent` SSE events. Enable streaming on the client side (e.g. `"streaming": true` in `ovos-a2a-agent` config).
+
+### A2A without `a2a-sdk`
+
+If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server starts normally and logs a warning. All other API surfaces continue to work.
+
+---
+
+## Persona Config Examples
+
+### LLM persona (OpenAI-compatible backend)
+
+```json
+{
+  "name": "gpt-persona",
+  "chat_module": "ovos-openai-plugin",
+  "ovos-openai-plugin": {
+    "api_key": "sk-...",
+    "model": "gpt-4o-mini"
+  }
+}
+```
+
+### Knowledge-base + LLM fallback
+
+```json
+{
+  "name": "smart-assistant",
+  "solvers": [
+    "ovos-solver-wikipedia-plugin",
+    "ovos-solver-ddg-plugin",
+    "ovos-solver-wordnet-plugin",
+    "ovos-openai-plugin",
+    "ovos-solver-failure-plugin"
+  ],
+  "ovos-openai-plugin": {
+    "api_key": "sk-...",
+    "model": "gpt-4o-mini"
+  }
+}
+```
+
+### Rivescript chatbot (no GPU, no API key)
+
+```json
+{
+  "name": "rivescript-bot",
+  "solvers": [
+    "ovos-solver-rivescript-plugin",
+    "ovos-solver-failure-plugin"
+  ]
+}
+```
+
+---
+
+## Streaming
+
+All seven non-A2A APIs support SSE streaming where the upstream spec defines it. Pass `"stream": true` (OpenAI / Cohere / TGI) or the equivalent for each API. See [docs/streaming.md](docs/streaming.md) for per-API details.
+
+---
 
 ## OPM Tool Plugins — MCP and UTCP exposure
 
@@ -138,30 +330,33 @@ The server picks it up automatically on the next start.
 
 ## Client side usage
 
-OpenAI compatible API, for usage with OVOS see [ovos-solver-plugin-openai-persona](https://github.com/OpenVoiceOS/ovos-solver-plugin-openai-persona)
+The OpenAI and Ollama routers expose `/embeddings` endpoints. These require a solver plugin that implements `get_embeddings(text)`. If no such solver is loaded the endpoint returns HTTP 501. See [docs/embeddings.md](docs/embeddings.md).
 
-```python
-import openai
+---
 
-openai.api_key = ""
-openai.api_base = "http://localhost:8337"
+## Authentication
 
-# NOTE - most solvers don't support a chat history,
-#  only last message in messages list is considered
-chat_completion = openai.ChatCompletion.create(
-    model="",  # individual personas might support this, passed under context
-    messages=[{"role": "user", "content": "tell me a joke"}],
-    stream=False,
-)
+The server itself does not enforce authentication — deploy behind a reverse proxy (nginx, Caddy, Traefik) with TLS and auth if public exposure is required. For the A2A endpoint, A2A clients that require bearer tokens can be configured on the client side (`api_key` in `ovos-a2a-agent` config).
 
-if isinstance(chat_completion, dict):
-    # not stream
-    print(chat_completion.choices[0].message.content)
-else:
-    # stream
-    for token in chat_completion:
-        content = token["choices"][0]["delta"].get("content")
-        if content != None:
-            print(content, end="", flush=True)
+---
 
+## Troubleshooting
+
+**`Failed to load persona` (500 on startup)**
+The persona JSON file was not found or is invalid. Check the `--persona` path and validate the JSON.
+
+**All requests return `500 Persona chat failed`**
+The underlying solver chain failed. Check solver plugin installation and their individual configs (API keys, model paths, etc.).
+
+**A2A endpoint not available after starting with `--a2a-base-url`**
+`a2a-sdk` is not installed. Install it:
+```bash
+uv pip install 'ovos-persona-server[a2a]'
 ```
+Then restart the server.
+
+**Embeddings return 501**
+No solver with `get_embeddings()` is loaded. Add an embeddings solver to the persona's `solvers` list.
+
+**Legacy `/v1/` paths return responses with `Deprecation` header**
+This is expected. Migrate to `/openai/v1/` paths. See [docs/deprecation.md](docs/deprecation.md).
