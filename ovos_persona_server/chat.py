@@ -273,7 +273,7 @@ async def create_completion(
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
-                    chunk_data = {
+                    payload = {
                         'id': f"cmpl-{completion_id}",
                         'object': "text_completion",
                         'created': completion_timestamp,
@@ -285,13 +285,13 @@ async def create_completion(
                             'finish_reason': None
                         }]
                     }
-                    yield f"data: {json.dumps(chunk_data)}\n\n"
+                    yield f"data: {json.dumps(payload)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason
-        final_completion_data = {
+        final_payload = {
             'id': f"cmpl-{completion_id}",
             'object': "text_completion",
             'created': completion_timestamp,
@@ -303,7 +303,7 @@ async def create_completion(
                 'finish_reason': FinishReason.STOP.value
             }]
         }
-        yield f"data: {json.dumps(final_completion_data)}\n\n"
+        yield f"data: {json.dumps(final_payload)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(streaming_completion_response(), media_type="text/event-stream")

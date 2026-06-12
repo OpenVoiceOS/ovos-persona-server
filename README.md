@@ -229,7 +229,106 @@ All seven non-A2A APIs support SSE streaming where the upstream spec defines it.
 
 ---
 
-## Embeddings
+## OPM Tool Plugins — MCP and UTCP exposure
+
+Installed `ToolBox` plugins (OPM entry-point group `opm.agents.toolbox`) are
+automatically surfaced over two protocols when the server starts.
+
+### Installing the MCP extra
+
+```bash
+pip install ovos-persona-server[mcp]
+```
+
+Without the `[mcp]` extra only the UTCP endpoints are active.
+
+### UTCP — Universal Tool Calling Protocol
+
+Two endpoints are added at `/tools`:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET`  | `/tools/manual` | Returns a UTCP manual JSON listing all tools |
+| `POST` | `/tools/{name}` | Invoke a tool by name with a JSON body |
+
+**Fetch the manual:**
+
+```bash
+curl http://localhost:8337/tools/manual
+```
+
+Response shape:
+
+```json
+{
+  "utcp_version": "1.0",
+  "tools": [
+    {
+      "name": "my_tool",
+      "description": "Does something useful.",
+      "tool_provider": {
+        "type": "http",
+        "method": "POST",
+        "url": "http://localhost:8337/tools/my_tool",
+        "content_type": "application/json"
+      },
+      "inputs": [
+        {"name": "query", "type": "string", "required": true, "description": "Search query"}
+      ],
+      "output_schema": { ... }
+    }
+  ]
+}
+```
+
+**Invoke a tool:**
+
+```bash
+curl -X POST http://localhost:8337/tools/my_tool \
+     -H "Content-Type: application/json" \
+     -d '{"query": "hello"}'
+```
+
+### MCP — Model Context Protocol
+
+When the `[mcp]` extra is installed, the server mounts an MCP SSE endpoint at
+`/mcp`.  Each installed `ToolBox` tool is registered as an MCP tool with the
+name, description, and JSON Schema derived from its OPM definition.
+
+**Claude Desktop / MCP client config:**
+
+```json
+{
+  "mcpServers": {
+    "ovos-persona-tools": {
+      "url": "http://localhost:8337/mcp/sse"
+    }
+  }
+}
+```
+
+**Standalone stdio MCP server** (for clients that spawn a subprocess):
+
+```bash
+ovos-persona-tools-mcp
+```
+
+This runs the same tool set over the stdio MCP transport.
+
+### Writing a ToolBox plugin
+
+Implement `ToolBox` from `ovos_plugin_manager.templates.agent_tools` and
+register it under the `opm.agents.toolbox` entry-point group:
+
+```toml
+# pyproject.toml
+[project.entry-points."opm.agents.toolbox"]
+my_toolbox = "my_package.toolbox:MyToolBox"
+```
+
+The server picks it up automatically on the next start.
+
+## Client side usage
 
 The OpenAI and Ollama routers expose `/embeddings` endpoints. These require a solver plugin that implements `get_embeddings(text)`. If no such solver is loaded the endpoint returns HTTP 501. See [docs/embeddings.md](docs/embeddings.md).
 

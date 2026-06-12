@@ -8,6 +8,7 @@ initialization using SQLAlchemy.
 """
 import json
 import os
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,12 +17,16 @@ from ovos_persona import Persona
 import ovos_persona_server.persona
 
 
-def create_persona_app(persona_path: str) -> FastAPI:
+def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
     Args:
         persona_path: Path to a persona JSON file.
+        a2a_base_url: If provided, mounts an A2A-compatible endpoint at ``/a2a``
+                      using this URL as the public base URL in the Agent Card
+                      (e.g. ``http://myhost:8337/a2a``). Requires ``a2a-sdk``
+                      to be installed (``uv pip install 'ovos-persona-server[a2a]'``).
 
     Returns:
         FastAPI: The configured FastAPI application instance.
@@ -56,6 +61,12 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
+    from ovos_persona_server.utcp import utcp_router
+    from ovos_persona_server.cohere import cohere_router
+    from ovos_persona_server.huggingface_tgi import tgi_router
+    from ovos_persona_server.aws_bedrock import bedrock_router
+    from ovos_persona_server.gemini import gemini_router
+    from ovos_persona_server.anthropic import anthropic_router
     from ovos_persona_server.deprecated_routers import (
         add_deprecation_middleware,
         register_deprecated_routes,
@@ -64,9 +75,38 @@ def create_persona_app(persona_path: str) -> FastAPI:
     # Canonical prefixed routers
     app.include_router(chat_router)         # /openai/v1/...
     app.include_router(ollama_router)       # /ollama/api/...
+    app.include_router(utcp_router)
+    app.include_router(cohere_router)       # /cohere/v1/...
+    app.include_router(tgi_router)          # /tgi/...
+    app.include_router(bedrock_router)      # /bedrock/model/...
+    app.include_router(gemini_router)       # /gemini/v1beta/models/...
+    app.include_router(anthropic_router)    # /anthropic/v1/...
 
     # Legacy deprecated paths — same handlers, with Deprecation + Link headers
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
     add_deprecation_middleware(app)         # injects headers on /v1/* and /api/*
+
+    # Optional A2A endpoint — mounted only when a2a_base_url is provided
+    if a2a_base_url is not None:
+        from ovos_persona_server.a2a import _A2A_AVAILABLE, create_a2a_application
+        if _A2A_AVAILABLE:
+            a2a_starlette = create_a2a_application(persona, a2a_base_url).build()
+            app.mount("/a2a", a2a_starlette)
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "a2a_base_url was set but a2a-sdk is not installed — "
+                "A2A endpoint will not be available. "
+                "Install with: uv pip install 'ovos-persona-server[a2a]'"
+            )
+
+    # Mount MCP server (streamable-HTTP transport) when the `mcp` package is available.
+    # mount_mcp_on_app sets streamable_http_path="/" so the endpoint lands at /mcp
+    # (not /mcp/mcp) and chains the session manager into the host app lifespan.
+    try:
+        from ovos_persona_server.mcp_server import mount_mcp_on_app
+        mount_mcp_on_app(app)
+    except ImportError:
+        pass  # mcp extra not installed — UTCP only
 
     return app
