@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.11.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.11.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.10.0a1...0.11.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): Cohere-compatible endpoints \(/cohere/v1\) [\#32](https://github.com/OpenVoiceOS/ovos-persona-server/pull/32) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.10.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.10.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.9.0a1...0.10.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): HuggingFace TGI-compatible endpoints \(/tgi\) [\#33](https://github.com/OpenVoiceOS/ovos-persona-server/pull/33) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.9.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.9.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.8.0a1...0.9.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): AWS Bedrock-compatible endpoints \(/bedrock/model\) [\#34](https://github.com/OpenVoiceOS/ovos-persona-server/pull/34) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.8.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.8.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.7.0a1...0.8.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): Google Gemini-compatible endpoints \(/gemini/v1beta\) [\#31](https://github.com/OpenVoiceOS/ovos-persona-server/pull/31) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.7.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.7.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.6.0a1...0.7.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): Anthropic Claude-compatible endpoints \(/anthropic/v1\) [\#30](https://github.com/OpenVoiceOS/ovos-persona-server/pull/30) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
