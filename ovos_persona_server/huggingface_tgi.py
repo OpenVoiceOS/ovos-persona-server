@@ -52,20 +52,8 @@ class TGIResponse(BaseModel):
     details: Optional[TGIDetails] = None
 
 
-@tgi_router.post("/generate", response_model=TGIResponse)
-async def generate(
-        request: TGIRequest,
-        persona: Persona = Depends(get_default_persona),
-) -> JSONResponse:
-    """Generate text (HuggingFace TGI-compatible).
-
-    Args:
-        request: TGI generate request with inputs string.
-        persona: Injected persona instance.
-
-    Returns:
-        TGIResponse with generated_text.
-    """
+def _generate(request: TGIRequest, persona: Persona) -> JSONResponse:
+    """Run a non-streaming generation and build the TGI response."""
     messages = [{"role": "user", "content": request.inputs}]
     text = persona.chat(messages)
     return JSONResponse(TGIResponse(
@@ -74,20 +62,8 @@ async def generate(
     ).model_dump())
 
 
-@tgi_router.post("/generate_stream", response_model=None)
-async def generate_stream(
-        request: TGIRequest,
-        persona: Persona = Depends(get_default_persona),
-) -> StreamingResponse:
-    """Stream generated text (HuggingFace TGI-compatible).
-
-    Args:
-        request: TGI generate request with inputs string.
-        persona: Injected persona instance.
-
-    Returns:
-        SSE stream of TGI token events.
-    """
+def _generate_stream(request: TGIRequest, persona: Persona) -> StreamingResponse:
+    """Run a streaming generation and emit TGI SSE token events."""
     messages = [{"role": "user", "content": request.inputs}]
 
     async def _stream() -> AsyncGenerator[str, None]:
@@ -117,6 +93,63 @@ async def generate_stream(
         yield f"data:{final}\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@tgi_router.post("", response_model=None)
+async def generate_root(
+        request: TGIRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> Union[JSONResponse, StreamingResponse]:
+    """Generate text at the endpoint root (HuggingFace TGI-compatible).
+
+    The ``huggingface_hub.InferenceClient`` posts to the bare endpoint URL and
+    selects streaming via the ``stream`` flag in the body, so the root route
+    dispatches to the non-streaming or streaming handler accordingly.
+
+    Args:
+        request: TGI generate request with inputs string.
+        persona: Injected persona instance.
+
+    Returns:
+        TGIResponse JSON, or an SSE token stream when ``stream`` is set.
+    """
+    if request.stream:
+        return _generate_stream(request, persona)
+    return _generate(request, persona)
+
+
+@tgi_router.post("/generate", response_model=TGIResponse)
+async def generate(
+        request: TGIRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> JSONResponse:
+    """Generate text (HuggingFace TGI-compatible).
+
+    Args:
+        request: TGI generate request with inputs string.
+        persona: Injected persona instance.
+
+    Returns:
+        TGIResponse with generated_text.
+    """
+    return _generate(request, persona)
+
+
+@tgi_router.post("/generate_stream", response_model=None)
+async def generate_stream(
+        request: TGIRequest,
+        persona: Persona = Depends(get_default_persona),
+) -> StreamingResponse:
+    """Stream generated text (HuggingFace TGI-compatible).
+
+    Args:
+        request: TGI generate request with inputs string.
+        persona: Injected persona instance.
+
+    Returns:
+        SSE stream of TGI token events.
+    """
+    return _generate_stream(request, persona)
 
 
 @tgi_router.get("/info", response_model=None)
