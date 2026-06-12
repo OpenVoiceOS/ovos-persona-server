@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a3) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a2...0.12.0a3)
+
+**Merged pull requests:**
+
+- test: real-SDK e2e for merged OpenAI + Ollama endpoints \(+ /generate compat fix\) [\#51](https://github.com/OpenVoiceOS/ovos-persona-server/pull/51) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a2) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a1...0.12.0a2)
