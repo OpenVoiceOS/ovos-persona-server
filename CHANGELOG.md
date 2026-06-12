@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.11.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.10.0a1...0.11.0a1)
+
+**Merged pull requests:**
+
+- feat\(compat\): Cohere-compatible endpoints \(/cohere/v1\) [\#32](https://github.com/OpenVoiceOS/ovos-persona-server/pull/32) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.10.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.10.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.9.0a1...0.10.0a1)
