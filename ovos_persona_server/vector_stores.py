@@ -449,8 +449,8 @@ async def create_vector_store_file(
                 embedding_metadata_for_batch.append({
                     "file_id": file_orm.id,
                     "chunk_index": i,
-                   # "content": chunk_content,  # already stored in metadata DB, redundant to store here
-                    "vector_store_file_id": new_vs_file_orm.id # Add this for potential future filtering
+                    "content": chunk_content,
+                    "vector_store_file_id": new_vs_file_orm.id
                 })
 
             # Add all chunk ORMs to the session

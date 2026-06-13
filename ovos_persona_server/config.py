@@ -210,10 +210,12 @@ Focus on the most important information.
         """
         # assume either openai or ovos-gguf-embeddings-plugin compatible plugin
         if self.text_embeddings_plugin == "ovos-gguf-embeddings-plugin":
-            return {
+            cfg: Dict[str, Any] = {
                 "n_gpu_layers": self.llama_n_gpu_layers or 0,
-                "verbose": self.embeddings_verbose is not None and self.embeddings_verbose.lower() == 'true'
+                "verbose": self.embeddings_verbose is not None and self.embeddings_verbose.lower() == 'true',
+                "model": self.embeddings_model or "all-MiniLM-L6-v2",
             }
+            return cfg
         return {
             "key": self.embeddings_key or self.openai_key,
             "api_url": self.embeddings_url or self.openai_url,
