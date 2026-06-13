@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a4) (2026-06-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a3...0.12.0a4)
+
+**Merged pull requests:**
+
+- chore: consolidate test/ into tests/ \(single test directory\) [\#53](https://github.com/OpenVoiceOS/ovos-persona-server/pull/53) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a3) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a2...0.12.0a3)
