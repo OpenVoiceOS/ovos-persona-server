@@ -6,9 +6,11 @@ and legacy text completions, allowing interaction with the OVOS Persona
 system using OpenAI's API specifications.
 """
 
+import base64
 import json
 import random
 import string
+import struct
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
@@ -18,6 +20,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
+from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
 from ovos_persona_server.persona import get_default_persona
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
@@ -345,45 +348,41 @@ class OpenAIEmbeddingsRequest(BaseModel):
 @chat_router.post("/embeddings")
 async def embeddings(
         request_body: OpenAIEmbeddingsRequest,
-        persona: Persona = Depends(get_default_persona),
+        embedder=Depends(get_embeddings_backend),
 ) -> JSONResponse:
-    """Generate embeddings (OpenAI-compatible stub).
+    """Generate embeddings (OpenAI-compatible).
 
-    Delegates to persona's embeddings solver if available.
+    Delegates to the shared, swappable embeddings backend
+    (:func:`get_embeddings_backend`) — the same service used by the Ollama
+    endpoint and vector-store search. Configure it via ``TEXT_EMBEDDINGS_PLUGIN``
+    / ``EMBEDDINGS_URL`` / ``EMBEDDINGS_MODEL`` to point at any embeddings provider.
 
     Args:
         request_body: OpenAI embeddings request with model and input.
-        persona: Injected persona instance.
+        embedder: Injected shared embeddings backend.
 
     Returns:
-        Embeddings response or 501 if not supported.
+        OpenAI-format embeddings response.
 
     Raises:
-        HTTPException: 501 if no embeddings solver is configured.
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
     """
-    solver_names = list(persona.solvers.loaded_modules.keys())
-    embed_solver = None
-    for name in solver_names:
-        solver = persona.solvers.loaded_modules[name]
-        if hasattr(solver, "get_embeddings"):
-            embed_solver = solver
-            break
-
-    if embed_solver is None:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="No embeddings solver configured for this persona.",
-        )
-
     texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
-    data = []
-    for i, t in enumerate(texts):
-        vec = embed_solver.get_embeddings(t)
-        data.append({"object": "embedding", "embedding": vec, "index": i})
+    vectors = embed_texts(embedder, texts)
+    # The official openai SDK requests encoding_format="base64" by default and
+    # decodes float32 buffers client-side; honour it for SDK compatibility.
+    if request_body.encoding_format == "base64":
+        encoded = [base64.b64encode(struct.pack(f"<{len(vec)}f", *vec)).decode("ascii")
+                   for vec in vectors]
+        data = [{"object": "embedding", "embedding": e, "index": i} for i, e in enumerate(encoded)]
+    else:
+        data = [{"object": "embedding", "embedding": vec, "index": i}
+                for i, vec in enumerate(vectors)]
+    prompt_tokens = sum(len(t.split()) for t in texts)
 
     return JSONResponse({
         "object": "list",
         "data": data,
-        "model": request_body.model,
-        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+        "model": backend_model_name(embedder, request_body.model),
+        "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
     })

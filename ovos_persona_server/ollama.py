@@ -19,6 +19,7 @@ from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 
+from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts
 from ovos_persona_server.persona import get_default_persona
 from ovos_persona_server.schemas.ollama import (
     OllamaChatResponse,
@@ -29,7 +30,9 @@ from ovos_persona_server.schemas.ollama import (
     OllamaModel,
     OllamaChatMessage,
     OllamaEmbedRequest,
-    OllamaEmbedResponse
+    OllamaEmbedResponse,
+    OllamaEmbeddingsRequest,
+    OllamaEmbeddingsResponse,
 )
 
 
@@ -453,39 +456,53 @@ async def push(request_body: OllamaPushRequest) -> JSONResponse:
     return JSONResponse({"status": "success"})
 
 
-@ollama_router.post("/embeddings")
-async def ollama_embeddings(
+@ollama_router.post("/embed")
+async def ollama_embed(
         request_body: OllamaEmbedRequest,
-        persona: Persona = Depends(get_default_persona),
+        embedder=Depends(get_embeddings_backend),
 ) -> JSONResponse:
-    """Generate embeddings (Ollama-compatible stub).
+    """Generate embeddings (Ollama ``/api/embed``, batch).
 
-    Delegates to persona's embeddings solver if available.
+    Delegates to the shared, swappable embeddings backend
+    (:func:`get_embeddings_backend`) — the same service used by the OpenAI
+    endpoint and vector-store search. This is the endpoint the official
+    ``ollama`` client's ``embed()`` method targets.
 
     Args:
-        request_body: Ollama embed request with model and input.
-        persona: Injected persona instance.
+        request_body: Ollama embed request with model and ``input`` (str or list).
+        embedder: Injected shared embeddings backend.
 
     Returns:
-        Ollama-format embeddings response or 501 if not supported.
+        Ollama-format embeddings response (one vector per input).
 
     Raises:
-        HTTPException: 501 if no embeddings solver is configured.
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
     """
-    solver_names = list(persona.solvers.loaded_modules.keys())
-    embed_solver = None
-    for name in solver_names:
-        solver = persona.solvers.loaded_modules[name]
-        if hasattr(solver, "get_embeddings"):
-            embed_solver = solver
-            break
+    texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
+    vectors = embed_texts(embedder, texts)
+    return JSONResponse(OllamaEmbedResponse(model=request_body.model, embeddings=vectors).model_dump(exclude_none=True))
 
-    if embed_solver is None:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="No embeddings solver configured for this persona.",
-        )
 
-    input_text = request_body.input if isinstance(request_body.input, str) else " ".join(request_body.input)
-    vec = embed_solver.get_embeddings(input_text)
-    return JSONResponse(OllamaEmbedResponse(embeddings=[vec]).model_dump())
+@ollama_router.post("/embeddings")
+async def ollama_embeddings(
+        request_body: OllamaEmbeddingsRequest,
+        embedder=Depends(get_embeddings_backend),
+) -> JSONResponse:
+    """Generate a single embedding (legacy Ollama ``/api/embeddings``).
+
+    Delegates to the shared, swappable embeddings backend. This is the endpoint
+    the official ``ollama`` client's ``embeddings()`` method targets (single
+    ``prompt`` in, single ``embedding`` out).
+
+    Args:
+        request_body: Legacy Ollama embeddings request with model and ``prompt``.
+        embedder: Injected shared embeddings backend.
+
+    Returns:
+        Ollama-format legacy embeddings response (a single vector).
+
+    Raises:
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
+    """
+    vec = embed_texts(embedder, [request_body.prompt])[0]
+    return JSONResponse(OllamaEmbeddingsResponse(embedding=vec).model_dump())

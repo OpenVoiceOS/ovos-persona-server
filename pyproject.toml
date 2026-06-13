@@ -35,7 +35,7 @@ dependencies = [
 a2a = ["a2a-sdk>=0.3.0", "httpx>=0.27"]
 # Plugins powering vector-store search (chunking + reranking + embeddings)
 rag = ["ovos-document-chunkers", "ovos-flashrank-reranker-plugin"]
-dev = ["pytest>=7.0", "pytest-asyncio", "pytest-cov", "httpx", "openai"]
+dev = ["pytest>=7.0", "pytest-asyncio", "pytest-cov", "httpx", "openai", "ollama"]
 
 [project.urls]
 Homepage = "https://github.com/OpenVoiceOS/ovos-persona-server"

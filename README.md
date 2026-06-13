@@ -66,3 +66,42 @@ else:
             print(content, end="", flush=True)
 
 ```
+
+## Embeddings
+
+A single, swappable embeddings service backs **every** vendor surface — the
+OpenAI `POST /openai/v1/embeddings` endpoint, the Ollama `POST /ollama/api/embed`
+(batch) and legacy `POST /ollama/api/embeddings` (single `prompt`) endpoints, and
+the vector-store search path all delegate to the same backend. This mirrors how
+inference is backed by one shared persona: swap the embeddings provider once and
+it changes everywhere.
+
+The backend is any OVOS text-embeddings plugin, configured through the
+environment:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `TEXT_EMBEDDINGS_PLUGIN` | embeddings plugin to load | `ovos-gguf-embeddings-plugin` |
+| `EMBEDDINGS_URL` | remote embeddings service URL (OpenAI-compatible plugins) | — |
+| `EMBEDDINGS_KEY` | API key for a remote embeddings service | — |
+| `EMBEDDINGS_MODEL` | model name to request | — |
+
+Point `TEXT_EMBEDDINGS_PLUGIN` at a local model (the default gguf plugin) or at
+any remote embeddings API via an OpenAI-compatible plugin and the matching
+`EMBEDDINGS_URL` / `EMBEDDINGS_MODEL`. When no embeddings plugin is available the
+server falls back to a persona solver exposing `get_embeddings`.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8337/openai/v1", api_key="")
+resp = client.embeddings.create(model="", input=["hello", "world"])
+print(len(resp.data), "vectors")
+```
+
+```python
+from ollama import Client
+
+client = Client(host="http://localhost:8337/ollama")
+print(client.embed(model="", input=["hello", "world"]).embeddings)
+```

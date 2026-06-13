@@ -1,11 +1,17 @@
 """
-FastAPI router for OpenAI-compatible embeddings endpoints.
+Shared, swappable text-embeddings backend for the persona server.
 
-This module provides an API endpoint for generating text embeddings
-using configured OVOS text embedding plugins.
+A single embeddings service backs every vendor router (OpenAI, Ollama, …) and
+the vector-store search path, mirroring how inference is backed by one shared
+persona. The service is resolved by :func:`get_embeddings_backend` and is fully
+configurable — point it at any embeddings provider through the
+``TEXT_EMBEDDINGS_PLUGIN`` / ``EMBEDDINGS_URL`` / ``EMBEDDINGS_MODEL`` settings
+(any OVOS text-embeddings plugin, local or remote). When no plugin is available
+it falls back to a persona solver exposing ``get_embeddings``.
 """
+import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List, Optional
 
 from fastapi import FastAPI, Depends, status, APIRouter, HTTPException
 from fastapi.responses import JSONResponse
@@ -15,6 +21,8 @@ from ovos_plugin_manager.templates.embeddings import ImageEmbedder, TextEmbedder
 from ovos_persona_server.config import settings
 from ovos_persona_server.schemas.openai_embeddings import CreateEmbeddingResponse, CreateEmbeddingRequest, Embedding, \
     Usage
+
+LOG = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -78,10 +86,106 @@ async def get_image_embeddings() -> Optional[ImageEmbedder]:
     return image_embeddings
 
 
+class _SolverEmbedder:
+    """Adapt a persona solver exposing ``get_embeddings`` to the embedder interface.
+
+    Lets a persona that bundles an embeddings-capable solver act as the shared
+    embeddings backend when no dedicated embeddings plugin is configured.
+    """
+
+    def __init__(self, solver: Any) -> None:
+        self._solver = solver
+        self.config: dict = {}
+
+    def get_embeddings(self, text: str) -> List[float]:
+        return self._solver.get_embeddings(text)
+
+
+def _persona_solver_embedder() -> Optional[_SolverEmbedder]:
+    """Return an embedder backed by the default persona's first embeddings solver, if any."""
+    from ovos_persona_server.persona import default_persona
+
+    if default_persona is None:
+        return None
+    for solver in default_persona.solvers.loaded_modules.values():
+        if hasattr(solver, "get_embeddings"):
+            return _SolverEmbedder(solver)
+    return None
+
+
+async def get_embeddings_backend() -> TextEmbedder:
+    """Return the shared, swappable text-embeddings backend used by every router.
+
+    This is the embeddings analogue of :func:`get_default_persona`: a single
+    service that every vendor endpoint (OpenAI, Ollama, …) and the vector-store
+    search path delegate to, so swapping the embeddings provider in one place
+    changes it everywhere.
+
+    Resolution order:
+
+    1. The configured OVOS text-embeddings plugin
+       (``settings.text_embeddings_plugin``) — point it at any embeddings
+       service via ``EMBEDDINGS_URL`` / ``EMBEDDINGS_MODEL`` / ``EMBEDDINGS_KEY``.
+    2. A persona solver exposing ``get_embeddings`` — used when no embeddings
+       plugin is installed or it fails to load.
+
+    Override it per-app with ``app.dependency_overrides[get_embeddings_backend]``.
+
+    Raises:
+        HTTPException: 501 when no embeddings backend can be resolved.
+    """
+    global text_embeddings
+    if text_embeddings is None:
+        try:
+            plugin_class = load_text_embeddings_plugin(settings.text_embeddings_plugin)
+            text_embeddings = plugin_class(settings.embeddings_config)
+        except Exception as e:
+            LOG.warning("text embeddings plugin '%s' unavailable (%s); "
+                        "falling back to persona solver", settings.text_embeddings_plugin, e)
+            fallback = _persona_solver_embedder()
+            if fallback is not None:
+                return fallback
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="No embeddings backend available: configure TEXT_EMBEDDINGS_PLUGIN "
+                       "(optionally EMBEDDINGS_URL/EMBEDDINGS_MODEL) or load a persona solver "
+                       "exposing get_embeddings.",
+            ) from e
+    return text_embeddings
+
+
+def embed_texts(backend: TextEmbedder, texts: List[str]) -> List[List[float]]:
+    """Embed ``texts`` with ``backend`` and coerce each vector to ``list[float]``.
+
+    Args:
+        backend: Any object exposing ``get_embeddings(text) -> sequence[float]``.
+        texts: The strings to embed.
+
+    Returns:
+        One float vector per input text.
+
+    Raises:
+        HTTPException: 500 if the backend raises while generating embeddings.
+    """
+    try:
+        return [[float(x) for x in backend.get_embeddings(t)] for t in texts]
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Failed to generate embeddings: {e}") from e
+
+
+def backend_model_name(backend: TextEmbedder, requested: Optional[str] = None) -> str:
+    """Best-effort model identifier for an embeddings response."""
+    if requested:
+        return requested
+    cfg = getattr(backend, "config", None) or {}
+    return cfg.get("model", "server-default")
+
+
 @embeddings_router.post("/embeddings", response_model=CreateEmbeddingResponse, status_code=status.HTTP_200_OK)
 async def create_embeddings(
         request_body: CreateEmbeddingRequest,
-        embedder: TextEmbedder = Depends(get_text_embeddings)
+        embedder: TextEmbedder = Depends(get_embeddings_backend)
 ) -> JSONResponse:
     """
     Generates embeddings for the given text input(s).
