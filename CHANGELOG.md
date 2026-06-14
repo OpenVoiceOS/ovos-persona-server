@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a5) (2026-06-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a4...0.12.0a5)
+
+**Merged pull requests:**
+
+- docs: add NGI0 Commons Fund attribution [\#55](https://github.com/OpenVoiceOS/ovos-persona-server/pull/55) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a4) (2026-06-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a3...0.12.0a4)
