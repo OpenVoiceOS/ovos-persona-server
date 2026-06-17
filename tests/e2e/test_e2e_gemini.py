@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-genai = pytest.importorskip("google.genai", reason="google-genai SDK not installed")
+import google.genai as genai
 from google.genai import types  # noqa: E402
 
 _CHAT_REPLY = "The capital of France is Paris."

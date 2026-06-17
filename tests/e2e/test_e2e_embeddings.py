@@ -98,7 +98,7 @@ def base_url():
 
 
 def test_openai_sdk_embeddings(base_url):
-    openai = pytest.importorskip("openai", reason="openai SDK not installed")
+    import openai
 
     client = openai.OpenAI(base_url=f"{base_url}/openai/v1", api_key="not-needed")
     resp = client.embeddings.create(model="text-embedding-ada-002", input=["hello", "world"])
@@ -108,7 +108,7 @@ def test_openai_sdk_embeddings(base_url):
 
 
 def test_ollama_sdk_embed(base_url):
-    ollama = pytest.importorskip("ollama", reason="ollama SDK not installed")
+    import ollama
 
     client = ollama.Client(host=f"{base_url}/ollama")
     resp = client.embed(model="nomic-embed-text", input=["a", "bb"])
@@ -116,7 +116,7 @@ def test_ollama_sdk_embed(base_url):
 
 
 def test_ollama_sdk_legacy_embeddings(base_url):
-    ollama = pytest.importorskip("ollama", reason="ollama SDK not installed")
+    import ollama
 
     client = ollama.Client(host=f"{base_url}/ollama")
     resp = client.embeddings(model="nomic-embed-text", prompt="hello")

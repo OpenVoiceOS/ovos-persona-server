@@ -36,7 +36,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-boto3 = pytest.importorskip("boto3", reason="boto3 not installed")
+import boto3
 from botocore.config import Config  # noqa: E402
 
 _CHAT_REPLY = "The capital of France is Paris."

@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-openai = pytest.importorskip("openai", reason="openai SDK not installed")
+import openai
 
 _REPLY = "The capital of France is Paris."
 _CHUNKS = ["The ", "capital ", "of ", "France ", "is ", "Paris."]

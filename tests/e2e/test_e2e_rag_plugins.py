@@ -37,8 +37,7 @@ import httpx
 import pytest
 import uvicorn
 
-openai = pytest.importorskip("openai", reason="openai SDK not installed")
-pytest.importorskip("sqlalchemy", reason="sqlalchemy not installed")
+import openai
 
 # ---------------------------------------------------------------------------
 # Make sure the three plugin packages are importable (fail loudly if not)

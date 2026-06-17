@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-cohere = pytest.importorskip("cohere", reason="cohere SDK not installed")
+import cohere
 
 _CHAT_REPLY = "The capital of France is Paris."
 _STREAM_CHUNKS = ["The ", "capital ", "of ", "France ", "is ", "Paris."]

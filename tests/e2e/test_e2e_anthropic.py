@@ -34,7 +34,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-anthropic = pytest.importorskip("anthropic", reason="anthropic SDK not installed")
+import anthropic
 
 _CHAT_REPLY = "The capital of France is Paris."
 _STREAM_CHUNKS = ["The ", "capital ", "of ", "France ", "is ", "Paris."]

@@ -40,8 +40,7 @@ import pytest
 import uvicorn
 from fastapi import FastAPI
 
-openai = pytest.importorskip("openai", reason="openai SDK not installed")
-pytest.importorskip("sqlalchemy", reason="sqlalchemy not installed")
+import openai
 
 _PERSONA = {"name": "Failer", "solvers": ["ovos-solver-failure-plugin"]}
 

@@ -34,7 +34,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-hf = pytest.importorskip("huggingface_hub", reason="huggingface_hub not installed")
+import huggingface_hub as hf
 from huggingface_hub import InferenceClient  # noqa: E402
 
 _CHAT_REPLY = "The capital of France is Paris."

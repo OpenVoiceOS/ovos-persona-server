@@ -49,8 +49,7 @@ import httpx
 import pytest
 import uvicorn
 
-openai = pytest.importorskip("openai", reason="openai SDK not installed")
-pytest.importorskip("sqlalchemy", reason="sqlalchemy not installed")
+import openai
 
 # All three plugin packages must be importable (fail loudly if not installed).
 from ovos_gguf_plugin.embeddings import GGUFEmbeddings  # noqa: F401
