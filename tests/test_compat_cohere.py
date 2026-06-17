@@ -35,8 +35,20 @@ from fastapi.testclient import TestClient
 # Fixtures
 # ---------------------------------------------------------------------------
 
-def _make_app(chat_returns="Hello from Cohere!", stream_yields=None):
+class _FakeEmbedder:
+    """Deterministic stand-in for the shared embeddings backend."""
+
+    def __init__(self, vector=None):
+        self.config = {"model": "fake-cohere-embed"}
+        self._vector = vector if vector is not None else [0.1, 0.2, 0.3]
+
+    def get_embeddings(self, text):
+        return list(self._vector)
+
+
+def _make_app(chat_returns="Hello from Cohere!", stream_yields=None, embedder="default"):
     from ovos_persona_server.cohere import cohere_router
+    from ovos_persona_server.embeddings import get_embeddings_backend
     from ovos_persona_server.persona import get_default_persona
 
     if stream_yields is None:
@@ -46,12 +58,17 @@ def _make_app(chat_returns="Hello from Cohere!", stream_yields=None):
     mock_persona.chat.return_value = chat_returns
     mock_persona.stream.return_value = iter(stream_yields)
     mock_persona.name = "test-persona"
-    # No embeddings solver by default
     mock_persona.solvers.loaded_modules = {}
 
     app = FastAPI()
     app.include_router(cohere_router)
     app.dependency_overrides[get_default_persona] = lambda: mock_persona
+    # Embed now goes through the shared backend; inject a fake by default so the
+    # endpoint is exercised without a real embeddings plugin.
+    if embedder == "default":
+        app.dependency_overrides[get_embeddings_backend] = lambda: _FakeEmbedder()
+    elif embedder is not None:
+        app.dependency_overrides[get_embeddings_backend] = lambda: embedder
     return app, mock_persona
 
 
@@ -296,23 +313,29 @@ class TestCohereGenerateStreaming:
 # ---------------------------------------------------------------------------
 
 class TestCohereEmbed:
-    def test_embed_no_solver_returns_501(self):
-        app, mock_persona = _make_app()
-        mock_persona.solvers.loaded_modules = {}
+    def test_embed_no_backend_returns_501(self):
+        from fastapi import HTTPException, status
+
+        from ovos_persona_server.embeddings import get_embeddings_backend
+
+        app, _ = _make_app()
+
+        def _no_backend():
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                                detail="No embeddings backend available")
+
+        app.dependency_overrides[get_embeddings_backend] = _no_backend
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/cohere/v1/embed", json={"texts": ["hello", "world"]})
         assert resp.status_code == 501
 
-    def test_embed_with_solver_returns_embeddings(self):
-        app, mock_persona = _make_app()
-        fake_solver = MagicMock()
-        fake_solver.get_embeddings.return_value = [0.1, 0.2, 0.3]
-        mock_persona.solvers.loaded_modules = {"embed_solver": fake_solver}
+    def test_embed_with_backend_returns_embeddings(self):
+        app, _ = _make_app()
         client = TestClient(app)
         resp = client.post("/cohere/v1/embed", json={"texts": ["hello"]})
         assert resp.status_code == 200
         body = resp.json()
-        assert "embeddings" in body
+        assert body["embeddings"] == [[0.1, 0.2, 0.3]]
         assert body["texts"] == ["hello"]
 
 

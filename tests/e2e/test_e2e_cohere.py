@@ -51,7 +51,7 @@ def _build_app() -> FastAPI:
     persona = MagicMock()
     persona.name = "test-persona"
     persona.chat.return_value = _CHAT_REPLY
-    persona.stream.side_effect = lambda messages: iter(_STREAM_CHUNKS)
+    persona.stream.side_effect = lambda messages, **kwargs: iter(_STREAM_CHUNKS)
 
     app = FastAPI()
     app.include_router(cohere_router)
