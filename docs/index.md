@@ -10,14 +10,18 @@
 |------|----------|
 | [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
 | [streaming.md](streaming.md) | SSE streaming format per API |
-| [embeddings.md](embeddings.md) | Embeddings endpoint and solver requirement |
+| [rag.md](rag.md) | Files, Vector Stores, and the RAG flow (upload → embed → search → chat) |
+| [embeddings.md](embeddings.md) | Shared embeddings backend across every vendor surface |
 | [deprecation.md](deprecation.md) | Legacy `/v1/` and `/api/` paths; migration guide |
+
+Runnable examples live in [`examples/`](../examples/).
 
 ## API Surfaces at a Glance
 
 | API | Prefix | Source | Docs |
 |-----|--------|--------|------|
 | OpenAI | `/openai/v1` | `chat.py` | [api-compatibility.md](api-compatibility.md#1-openai----openaiv1) |
+| OpenAI RAG (Files + Vector Stores) | `/openai/v1/files`, `/openai/v1/vector_stores` | `files.py`, `vector_stores.py` | [rag.md](rag.md) |
 | Ollama | `/ollama/api` | `ollama.py` | [api-compatibility.md](api-compatibility.md#2-ollama----ollamaapi) |
 | Anthropic | `/anthropic/v1` | `anthropic.py` | [api-compatibility.md](api-compatibility.md#3-anthropic----anthropicv1) |
 | Google Gemini | `/gemini/v1beta/models` | `gemini.py` | [api-compatibility.md](api-compatibility.md#4-gemini----geminiv1betamodels) |
