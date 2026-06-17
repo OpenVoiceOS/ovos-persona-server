@@ -13,6 +13,25 @@ by swappable OVOS plugins, so the same API runs on a local laptop or a cloud box
 
 The official `openai` Python SDK works against all of it unmodified.
 
+## Drop-in replacement for OpenAI
+
+Because the Files, Vector Stores, and Embeddings endpoints match the OpenAI API,
+**any third-party app already built on OpenAI's RAG endpoints can point at this server
+instead** — just change the `base_url` (and ignore the key). No code changes:
+
+```python
+# before: OpenAI cloud
+client = OpenAI()                                             # api.openai.com
+# after: self-hosted, private, no OpenAI key, swappable local models
+client = OpenAI(base_url="http://your-host:8337/openai/v1", api_key="unused")
+```
+
+That turns an OpenAI-dependent RAG app into a self-hosted one backed by OVOS plugins
+(local gguf embeddings, chromadb/qdrant) — private data never leaves your box, no
+per-token cost, and you choose the embedding/vector-DB providers. The same applies to
+the chat/embeddings surfaces, so an app using OpenAI for chat **and** RAG can be
+migrated wholesale by switching one URL.
+
 ## Architecture
 
 ```
@@ -86,30 +105,73 @@ for r in hits.data:
     print(r.score, r.file_id)
 ```
 
-## Using the RAG solver plugin
+## Using RAG as a persona memory plugin
 
-[`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin) ships an
-`OpenAIRAGSolver` that turns the search + chat round-trip into a single persona
-solver: it queries a vector store on this server, injects the retrieved context
-into the prompt, and calls the server's `/chat/completions`.
+[`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin) ships
+`PersonaServerRAGMemory` (`ovos-openai-rag-memory-plugin`) — an OVOS persona
+**memory plugin** (`AgentContextManager`). Instead of owning the chat round-trip, it
+hooks the persona's context-building step: it searches a vector store on this server
+and injects the retrieved chunks into the conversation, then the persona's normal
+chat engine answers. This composes with any chat backend.
 
-```python
-from ovos_solver_openai_persona.rag import OpenAIRAGSolver
+Set it as the persona's `memory_module` (the persona passes the config block to the
+plugin):
 
-rag = OpenAIRAGSolver({
+```json
+{
+  "name": "kb-assistant",
+  "solvers": ["ovos-solver-openai-plugin"],
+  "memory_module": "ovos-openai-rag-memory-plugin",
+  "ovos-openai-rag-memory-plugin": {
     "api_url": "http://localhost:8337/openai/v1",
-    "vector_store_id": store.id,        # from the snippet above
-    "llm_model": "my-persona",
-    "key": "unused",
-    "max_num_results": 3,
-})
-answer = rag.continue_chat([{"role": "user", "content": "what sits on the mat?"}],
-                           lang="en-us")
-print(answer)
+    "vector_store_id": "vs_...",
+    "inject_mode": "system",
+    "retrieval": {"max_num_results": 5}
+  }
+}
 ```
 
-See [`examples/`](../examples/) for runnable versions of both flows and a ready
-persona config.
+`inject_mode` selects how retrieved context enters the prompt (`system` — a separate
+system message, default; `system_prompt`; `developer`; or `user`), plus configurable
+retrieval and formatting — see the plugin's module docstring. Requires `ovos-persona`
+with memory-plugin config passing.
+
+See [`examples/`](../examples/) for runnable flows and a ready persona config.
+
+## Backend vs hosted agent — the `CHAT_MEMORY` toggle
+
+Whether the chat endpoints apply that `memory_module` (RAG or short/long-term
+memory) on the way in is a **server-side deployment choice**, not a per-request one.
+It is governed by the `CHAT_MEMORY` environment variable:
+
+| `CHAT_MEMORY` | Mode | Behaviour |
+| --- | --- | --- |
+| `off` *(default)* | **Backend** | Stateless passthrough. The client sends the full message list and owns conversation state; the server applies **no** memory. The client is expected to drive the Files / Vector-Stores endpoints itself (that is what exposing them is *for*). |
+| `transparent` | **Hosted agent** | The server owns state: it treats the latest user message as the new turn, folds the persona's `memory_module` (history + RAG) into every request keyed by session, and persists the exchange for the next call. |
+
+```bash
+# backend (multi-user / drop-in OpenAI replacement) — the default
+ovos-persona-server --persona kb.json
+
+# single-user hosted agent — transparent server-side memory/RAG
+CHAT_MEMORY=transparent ovos-persona-server --persona kb.json
+```
+
+**Why off by default.** As a *drop-in OpenAI replacement* the server must behave like
+a backend: a shared server-side memory would leak conversation across callers in a
+multi-user deployment, and the OpenAI contract expects the client to send history. So
+`off` is correct unless you are deploying a single-user agent.
+
+**Per-user namespacing.** In `transparent` mode the OpenAI `user` field (when present)
+is used as the memory session key, so distinct callers keep separate histories; absent
+it, a single default session is used. Even so, `transparent` is intended for the
+hosted-agent case — keep it `off` for general multi-tenant backends.
+
+> Tool/function-calling requests (`tools=`) are always a stateless passthrough
+> regardless of this toggle — the client drives the tool loop and owns that state.
+
+This applies uniformly to every vendor chat surface (OpenAI, Ollama, Cohere, Gemini,
+Anthropic, …), since they all route through the same persona chat path.
 
 ## Endpoint reference
 

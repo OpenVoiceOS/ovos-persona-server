@@ -371,6 +371,10 @@ results into any chat endpoint. Files, embedding, and the vector DB are all back
 swappable OVOS plugins. Full reference: [docs/rag.md](docs/rag.md); runnable scripts in
 [examples/](examples/).
 
+> **Drop-in OpenAI replacement:** any third-party app built on OpenAI's Files /
+> Vector Stores / Embeddings endpoints can point at this server by changing only its
+> `base_url` — a self-hosted, private, zero-cost RAG backend with no code changes.
+
 ```bash
 uv pip install 'ovos-persona-server[rag]' ovos-gguf-plugin ovos-chromadb-embeddings-plugin
 
@@ -395,9 +399,19 @@ hits = client.vector_stores.search(vector_store_id=store.id, query="fluffy anima
 print([(h.file_id, h.score) for h in hits.data])
 ```
 
-The companion [`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin)
-`OpenAIRAGSolver` wraps the search + chat round-trip into a single persona solver — see
-[examples/rag_solver_plugin.py](examples/rag_solver_plugin.py).
+For conversational use, the companion [`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin)
+ships `PersonaServerRAGMemory` — a persona **memory plugin** that searches a vector
+store and injects the retrieved context, composing with any chat backend. See
+[docs/rag.md](docs/rag.md#using-rag-as-a-persona-memory-plugin) and
+[examples/rag_memory_plugin.py](examples/rag_memory_plugin.py).
+
+> **Backend vs hosted agent.** By default the chat endpoints are a **stateless
+> backend** (`CHAT_MEMORY=off`): the client owns conversation state and drives the
+> Files / Vector-Stores endpoints itself — the correct behaviour for a drop-in
+> OpenAI replacement or any multi-user deployment. Set `CHAT_MEMORY=transparent` to
+> run a **single-user hosted agent** where the server folds the persona's
+> `memory_module` (history + RAG) into every turn and persists it per session. See
+> [docs/rag.md](docs/rag.md#backend-vs-hosted-agent--the-chat_memory-toggle).
 
 | Resource | Endpoints |
 | --- | --- |

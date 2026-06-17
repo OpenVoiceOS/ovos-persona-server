@@ -30,6 +30,17 @@ class Settings:
                        which will be overridden by the PERSONA_PATH environment variable
                        or a command-line argument. If not provided,
                        LLM settings from environment variables are used.
+        chat_memory (str): Whether the chat endpoints transparently apply the persona's
+                           memory/RAG plugin to incoming requests. ``"off"`` (default) is
+                           the *backend* mode: requests are a stateless passthrough, the
+                           client owns conversation state and drives the Files / Vector-Stores
+                           endpoints itself. ``"transparent"`` is the single-user *hosted
+                           agent* mode: the server keys history by session (the OpenAI
+                           ``user`` field when present, else a default session) and folds the
+                           persona's ``memory_module`` into every turn. Loaded from the
+                           CHAT_MEMORY environment variable. Leave ``"off"`` for multi-user /
+                           drop-in-OpenAI-replacement deployments (shared server memory would
+                           leak across users).
         file_storage_path (str): The directory path where uploaded files will be stored.
                                  Defaults to "~/.cache/ovos-persona-server/files".
         file_storage_strategy (str): Defines how files are stored.
@@ -100,6 +111,7 @@ class Settings:
                          Defaults to "wtp-bert-mini".
     """
     persona: str = field(default_factory=lambda: os.environ.get('PERSONA_PATH', ""))
+    chat_memory: str = field(default_factory=lambda: os.environ.get('CHAT_MEMORY', 'off'))
     file_storage_path: str = field(default_factory=lambda: os.environ.get('FILE_STORAGE_PATH', os.path.expanduser(
         "~/.cache/ovos-persona-server/files")))
     file_storage_strategy: str = field(default_factory=lambda: os.environ.get('FILE_STORAGE_STRATEGY', 'disk'))

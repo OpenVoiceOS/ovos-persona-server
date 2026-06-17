@@ -189,8 +189,9 @@ async def chat_completions(
 
     if not stream:
         try:
-            # Call persona's chat method
-            content: str = run_chat(persona, messages)
+            # Call persona's chat method. In transparent-memory mode the optional
+            # OpenAI `user` field namespaces server-side history per caller.
+            content: str = run_chat(persona, messages, session_id=request_body.user)
 
             # Basic token count estimation
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
@@ -255,7 +256,7 @@ async def chat_completions(
 
         current_completion_tokens: int = 0
         try:
-            for chunk in run_stream(persona, messages):
+            for chunk in run_stream(persona, messages, session_id=request_body.user):
                 if chunk:  # Only send if chunk is not empty
                     current_completion_tokens += len(chunk.split())  # Basic token count
                     stream_chunk = CreateChatCompletionStreamResponse(
