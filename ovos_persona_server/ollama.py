@@ -101,7 +101,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
     if not stream:
         try:
             start_time: float = time.time()
-            content: str = persona.chat(persona_messages, lang=sess.lang, units=sess.system_unit)
+            content: str = persona.chat(persona_messages, sess=sess)
             end_time: float = time.time()
             total_duration = int((end_time - start_time) * 1_000_000_000)  # Nanoseconds
 
@@ -133,7 +133,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
         streaming_eval_duration: int = 0
 
         try:
-            for chunk in persona.stream(persona_messages, lang=sess.lang, units=sess.system_unit):
+            for chunk in persona.stream(persona_messages, sess=sess):
                 if chunk:
                     # Increment eval_count for each chunk (approximate)
                     streaming_eval_count += len(chunk.split())  # Simple token count approximation
@@ -227,7 +227,7 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
         try:
             start_time: float = time.time()
             # Use persona.chat for non-streaming generation
-            content: str = persona.chat(messages, lang=sess.lang, units=sess.system_unit)
+            content: str = persona.chat(messages, sess=sess)
             end_time: float = time.time()
             total_duration = int((end_time - start_time) * 1_000_000_000)
 
@@ -262,7 +262,7 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
 
         try:
             # Use persona.stream for streaming generation
-            for chunk in persona.stream(messages, lang=sess.lang, units=sess.system_unit):
+            for chunk in persona.stream(messages, sess=sess):
                 if chunk:
                     # Increment eval_count for each chunk (approximate)
                     streaming_eval_count += len(chunk.split())  # Simple token count approximation

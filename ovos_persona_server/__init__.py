@@ -126,7 +126,6 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
             a2a_starlette = create_a2a_application(persona, a2a_base_url).build()
             app.mount("/a2a", a2a_starlette)
         else:
-            import logging
             logging.getLogger(__name__).warning(
                 "a2a_base_url was set but a2a-sdk is not installed — "
                 "A2A endpoint will not be available. "

@@ -21,13 +21,13 @@ keywords = [
 ]
 dependencies = [
     "fastapi",
-    "ovos-persona",
+    "ovos-persona>=0.9.0a5",  # Persona.chat(messages, sess) signature
     "ovos-plugin-manager>=2.4.0a1",  # AgentTool/ToolBox templates + AGENT_TOOLBOX
     "ovos-workshop",
     "pydantic",
     "uvicorn",
     "aiosqlite",
-    "sqlalchemy>=2.0",
+    "sqlalchemy[asyncio]>=2.0",  # [asyncio] pulls greenlet, required by AsyncSession
     "python-dotenv",
     "python-multipart",
 ]

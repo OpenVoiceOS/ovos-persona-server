@@ -1,14 +1,15 @@
 # Licensed under the Apache License, Version 2.0
 """HuggingFace Text Generation Inference (TGI)-compatible endpoints."""
 import json
-from typing import AsyncGenerator, Optional, Union
+from typing import AsyncGenerator, List, Optional, Union
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 
 tgi_router = APIRouter(prefix="/tgi", tags=["huggingface-tgi"])
 
@@ -52,10 +53,17 @@ class TGIResponse(BaseModel):
     details: Optional[TGIDetails] = None
 
 
+class TGIEmbedRequest(BaseModel):
+    """Request body for POST /embed (Text Embeddings Inference-compatible)."""
+    inputs: Union[str, List[str]] = Field(..., description="Text or list of texts to embed")
+    normalize: Optional[bool] = None
+    truncate: Optional[bool] = None
+
+
 def _generate(request: TGIRequest, persona: Persona) -> JSONResponse:
     """Run a non-streaming generation and build the TGI response."""
     messages = [{"role": "user", "content": request.inputs}]
-    text = persona.chat(messages)
+    text = run_chat(persona, messages)
     return JSONResponse(TGIResponse(
         generated_text=text or "",
         details=TGIDetails(finish_reason="eos_token", generated_tokens=len((text or "").split())),
@@ -70,7 +78,7 @@ def _generate_stream(request: TGIRequest, persona: Persona) -> StreamingResponse
         accumulated = []
         token_count = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     accumulated.append(chunk)
                     token_count += 1
@@ -179,6 +187,32 @@ async def info(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
         "version": "2.0.0",
         "sha": "placeholder",
     })
+
+
+@tgi_router.post("/embed", response_model=None)
+async def embed(
+        request: TGIEmbedRequest,
+        embedder=Depends(get_embeddings_backend),
+) -> JSONResponse:
+    """Generate embeddings (HuggingFace Text Embeddings Inference-compatible).
+
+    Delegates to the shared embeddings backend (:func:`get_embeddings_backend`),
+    the same service used by every other vendor embedding surface. TEI returns a
+    bare JSON array of vectors, one per input.
+
+    Args:
+        request: TEI embed request with ``inputs`` (string or list of strings).
+        embedder: Injected shared embeddings backend.
+
+    Returns:
+        JSON array of float vectors, one per input text.
+
+    Raises:
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
+    """
+    texts = [request.inputs] if isinstance(request.inputs, str) else request.inputs
+    vectors = embed_texts(embedder, texts)
+    return JSONResponse(vectors)
 
 
 @tgi_router.get("/health", response_model=None)

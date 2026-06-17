@@ -5,6 +5,7 @@ This module provides an implementation of OpenAI's Vector Stores API,
 using OVOS text embedding plugins and a configurable EmbeddingsDB backend.
 It uses SQLAlchemy ORM for metadata storage.
 """
+import inspect
 import json
 import os
 import random
@@ -76,7 +77,16 @@ async def get_vector_db(embedder: TextEmbedder = Depends(get_text_embeddings)) -
                                 detail=f"Text embedder failed to provide a test embedding for vector size determination: {e}") from e
 
         db_plugin_class = load_embeddings_db_plugin(settings.embeddings_db_plugin)
-        _vector_db_instance = db_plugin_class(config=cfg)
+        # EmbeddingsDB plugins have heterogeneous constructors: the base template
+        # and ovos-qdrant take ``config=``, while ovos-chromadb takes a positional
+        # ``path``. Adapt to whichever the plugin actually accepts.
+        init_params = inspect.signature(db_plugin_class.__init__).parameters
+        if "config" in init_params:
+            _vector_db_instance = db_plugin_class(config=cfg)
+        elif "path" in init_params:
+            _vector_db_instance = db_plugin_class(path=cfg["path"])
+        else:
+            _vector_db_instance = db_plugin_class()
         LOG.debug(f"Initialized EmbeddingsDB plugin: {settings.embeddings_db_plugin} with config: {cfg}")
     return _vector_db_instance
 

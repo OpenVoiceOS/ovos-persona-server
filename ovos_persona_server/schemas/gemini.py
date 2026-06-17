@@ -53,3 +53,53 @@ class GeminiResponse(BaseModel):
     """Response for Gemini generateContent."""
 
     candidates: List[GeminiCandidate] = Field(..., min_length=1)
+
+
+class GeminiEmbedContent(BaseModel):
+    """Content block for an embedContent request (role optional/ignored)."""
+
+    parts: List[GeminiPart] = Field(..., min_length=1)
+
+
+class GeminiEmbedContentRequest(BaseModel):
+    """Request body for models/{model}:embedContent."""
+
+    content: GeminiEmbedContent
+    model: Optional[str] = None
+    taskType: Optional[str] = None
+    title: Optional[str] = None
+    outputDimensionality: Optional[int] = Field(default=None, gt=0)
+
+
+class GeminiContentEmbedding(BaseModel):
+    """A single embedding vector in a Gemini embeddings response."""
+
+    values: List[float]
+
+
+class GeminiEmbedContentResponse(BaseModel):
+    """Response for models/{model}:embedContent."""
+
+    embedding: GeminiContentEmbedding
+
+
+class GeminiBatchEmbedRequestItem(BaseModel):
+    """One sub-request inside a batchEmbedContents call."""
+
+    content: GeminiEmbedContent
+    model: Optional[str] = None
+    taskType: Optional[str] = None
+    title: Optional[str] = None
+    outputDimensionality: Optional[int] = Field(default=None, gt=0)
+
+
+class GeminiBatchEmbedContentsRequest(BaseModel):
+    """Request body for models/{model}:batchEmbedContents."""
+
+    requests: List[GeminiBatchEmbedRequestItem] = Field(..., min_length=1)
+
+
+class GeminiBatchEmbedContentsResponse(BaseModel):
+    """Response for models/{model}:batchEmbedContents."""
+
+    embeddings: List[GeminiContentEmbedding] = Field(..., min_length=1)

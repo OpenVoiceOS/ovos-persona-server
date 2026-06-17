@@ -7,10 +7,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 from ovos_persona_server.schemas.gemini import (
+    GeminiBatchEmbedContentsRequest,
+    GeminiBatchEmbedContentsResponse,
     GeminiCandidate,
     GeminiContent,
+    GeminiContentEmbedding,
+    GeminiEmbedContentRequest,
+    GeminiEmbedContentResponse,
     GeminiPart,
     GeminiRequest,
     GeminiResponse,
@@ -85,7 +91,7 @@ async def generate_content(
     """
     messages = _normalise_messages(request)
     try:
-        text = persona.chat(messages)
+        text = run_chat(persona, messages)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             detail=f"Persona chat failed: {exc}") from exc
@@ -115,7 +121,7 @@ async def stream_generate_content(
     async def _stream() -> AsyncGenerator[str, None]:
         """Yield SSE events with GeminiResponse chunks."""
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     resp = _build_response(chunk, model_id)
                     yield f"data: {json.dumps(resp.model_dump())}\n\n"
@@ -123,3 +129,62 @@ async def stream_generate_content(
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@gemini_router.post("/{model_id}:embedContent", response_model=None)
+async def embed_content(
+        model_id: str,
+        request: GeminiEmbedContentRequest,
+        key: Optional[str] = Query(default=None),
+        embedder=Depends(get_embeddings_backend),
+) -> JSONResponse:
+    """Embed a single content (Google Gemini-compatible).
+
+    Delegates to the shared embeddings backend (:func:`get_embeddings_backend`),
+    the same service used by every other vendor embedding surface.
+
+    Args:
+        model_id: Gemini embedding model identifier, used in path only.
+        request: Gemini embedContent request body.
+        key: API key query param (accepted, ignored).
+        embedder: Injected shared embeddings backend.
+
+    Returns:
+        GeminiEmbedContentResponse JSON with one embedding.
+
+    Raises:
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
+    """
+    text = " ".join(p.text for p in request.content.parts)
+    vector = embed_texts(embedder, [text])[0]
+    response = GeminiEmbedContentResponse(embedding=GeminiContentEmbedding(values=vector))
+    return JSONResponse(response.model_dump())
+
+
+@gemini_router.post("/{model_id}:batchEmbedContents", response_model=None)
+async def batch_embed_contents(
+        model_id: str,
+        request: GeminiBatchEmbedContentsRequest,
+        key: Optional[str] = Query(default=None),
+        embedder=Depends(get_embeddings_backend),
+) -> JSONResponse:
+    """Embed a batch of contents (Google Gemini-compatible).
+
+    Args:
+        model_id: Gemini embedding model identifier, used in path only.
+        request: Gemini batchEmbedContents request body.
+        key: API key query param (accepted, ignored).
+        embedder: Injected shared embeddings backend.
+
+    Returns:
+        GeminiBatchEmbedContentsResponse JSON with one embedding per request.
+
+    Raises:
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
+    """
+    texts = [" ".join(p.text for p in item.content.parts) for item in request.requests]
+    vectors = embed_texts(embedder, texts)
+    response = GeminiBatchEmbedContentsResponse(
+        embeddings=[GeminiContentEmbedding(values=v) for v in vectors]
+    )
+    return JSONResponse(response.model_dump())

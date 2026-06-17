@@ -21,7 +21,7 @@ from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
     ChatCompletionResponseMessage, ChatCompletionChoice, ChatCompletionStreamChoice,
@@ -73,7 +73,7 @@ async def chat_completions(
     if not stream:
         try:
             # Call persona's chat method
-            content: str = persona.chat(messages)
+            content: str = run_chat(persona, messages)
 
             # Basic token count estimation
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
@@ -138,7 +138,7 @@ async def chat_completions(
 
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:  # Only send if chunk is not empty
                     current_completion_tokens += len(chunk.split())  # Basic token count
                     stream_chunk = CreateChatCompletionStreamResponse(
@@ -236,7 +236,7 @@ async def create_completion(
 
     if not stream:
         try:
-            content: str = persona.chat(messages)
+            content: str = run_chat(persona, messages)
 
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
             completion_tokens: int = len(content.split())
@@ -272,7 +272,7 @@ async def create_completion(
         """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format

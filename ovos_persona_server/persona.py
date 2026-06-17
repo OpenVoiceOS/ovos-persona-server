@@ -5,13 +5,31 @@ This module defines the FastAPI router for persona-related endpoints,
 including loading the default persona and providing its status.
 """
 
-from typing import Optional
+from typing import Iterable, List, Optional
 
 from fastapi import HTTPException, status
+from ovos_bus_client.session import Session, SessionManager
 from ovos_persona import Persona
 
 # Dependency injection
 default_persona: Optional[Persona] = None
+
+
+def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = None) -> str:
+    """Call ``persona.chat`` with a Session.
+
+    ovos-persona's ``Persona.chat(messages, sess)`` requires a Session (it reads
+    ``sess.lang`` / ``sess.system_unit``). Vendor routers carry no session of
+    their own, so a default one is supplied. Centralised here so the ovos-persona
+    call contract lives in a single place.
+    """
+    return persona.chat(messages, sess=sess or SessionManager().get())
+
+
+def run_stream(persona: Persona, messages: List[dict],
+               sess: Optional[Session] = None) -> Iterable[str]:
+    """Call ``persona.stream`` with a Session (see :func:`run_chat`)."""
+    return persona.stream(messages, sess=sess or SessionManager().get())
 
 
 async def get_default_persona() -> Persona:
