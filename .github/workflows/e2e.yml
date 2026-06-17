@@ -24,9 +24,12 @@ jobs:
       python_versions: '["3.11"]'
       install_extras: "e2e"
       # Unreleased companions installed first so the [e2e] extra is satisfied by them:
-      #  - OpenAIRAGSolver lives on the ovos-openai-plugin `rag` branch (PR #37)
-      #  - ovos-chromadb-embeddings-plugin only has a 0.0.0 placeholder on PyPI;
-      #    the collection-aware API needed here lives on `dev`.
-      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-openai-plugin@rag git+https://github.com/OpenVoiceOS/ovos-chromadb-embeddings-plugin@dev"
+      #  - PersonaServerRAGMemory lives on the ovos-openai-plugin `opm-agents` branch (PR #54)
+      #  - the tool-call contract (MessageRole.TOOL, ToolCall) lives on the
+      #    ovos-plugin-manager `feat/agent-tool-calling` branch (PR #403)
+      #  - ovos-chromadb-embeddings-plugin only has a 0.0.0 placeholder on PyPI; the
+      #    collection-aware API needed here lives on `dev`
+      #  - ovos-persona must pass config to the memory plugin (feat/memory-plugin-config)
+      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-plugin-manager@feat/agent-tool-calling git+https://github.com/OpenVoiceOS/ovos-openai-plugin@opm-agents git+https://github.com/OpenVoiceOS/ovos-chromadb-embeddings-plugin@dev git+https://github.com/OpenVoiceOS/ovos-persona@feat/memory-plugin-config"
       test_path: "tests/e2e"
       pr_comment: true
