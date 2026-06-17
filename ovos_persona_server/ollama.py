@@ -175,7 +175,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
     return StreamingResponse(streaming_ollama_chat_response(), media_type="application/json")
 
 
-@ollama_router.post("/generate", response_model=OllamaChatResponse, status_code=status.HTTP_200_OK)
+@ollama_router.post("/generate", response_model=None, status_code=status.HTTP_200_OK)
 async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona = Depends(get_default_persona)) -> \
         Union[JSONResponse, StreamingResponse]:
     """Handle Ollama-compatible text generation requests.
@@ -231,19 +231,21 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
             end_time: float = time.time()
             total_duration = int((end_time - start_time) * 1_000_000_000)
 
-            return JSONResponse(content=OllamaChatResponse(
-                model=persona.name,
-                created_at=ts,
-                message={"role": "assistant", "content": content},
-                done=True,
-                total_duration=total_duration,
-                load_duration=load_duration,  # Placeholder
-                prompt_eval_count=prompt_eval_count,  # Placeholder
-                prompt_eval_duration=prompt_eval_duration,  # Placeholder
-                eval_count=eval_count,  # Placeholder
-                eval_duration=eval_duration,  # Placeholder
-                done_reason=done_reason
-            ).model_dump(exclude_unset=True))
+            # Ollama /generate returns the text under "response" (not a chat
+            # "message"), matching the streaming path and the official client.
+            return JSONResponse(content={
+                "model": persona.name,
+                "created_at": ts,
+                "response": content,
+                "done": True,
+                "total_duration": total_duration,
+                "load_duration": load_duration,
+                "prompt_eval_count": prompt_eval_count,
+                "prompt_eval_duration": prompt_eval_duration,
+                "eval_count": eval_count,
+                "eval_duration": eval_duration,
+                "done_reason": done_reason,
+            })
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona generation failed: {e}") from e

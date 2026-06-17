@@ -9,5 +9,7 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
     secrets: inherit
     with:
-      install_extras: "dev"
-      test_path: "tests"
+      install_extras: "dev,mcp"
+      # e2e tests need heavy real plugins (gguf model download, chromadb/qdrant)
+      # and run in their own workflow (e2e.yml); keep the unit matrix fast here.
+      test_path: "tests --ignore=tests/e2e"

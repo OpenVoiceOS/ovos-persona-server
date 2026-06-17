@@ -218,8 +218,8 @@ class TestOllamaRouter:
         )
         assert resp.status_code == 200
         body = resp.json()
-        # non-streaming /generate returns OllamaChatResponse which has "message" key
-        assert "message" in body
+        # Ollama /generate returns the text under "response" (not a chat "message")
+        assert "response" in body
         assert body["done"] is True
 
     def test_embeddings_no_solver_returns_501(self, client):
