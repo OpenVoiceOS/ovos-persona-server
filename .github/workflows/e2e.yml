@@ -6,10 +6,10 @@ name: End-to-End Tests
 #   - text embeddings: ovos-gguf-embeddings-plugin (downloads all-MiniLM-L6-v2)
 #   - vector DBs:       ovos-chromadb-embeddings-plugin + ovos-qdrant-embeddings-plugin
 #   - chat solver:      ovos-solver-openai-plugin (upstream LLM call mocked in-test)
-#   - RAG client:       ovos-openai-plugin OpenAIRAGSolver
+#   - RAG memory:       ovos-openai-plugin PersonaServerRAGMemory
 #
-# The companion RAG solver lives on the ovos-openai-plugin `rag` branch (PR #37),
-# pulled via pre_install_pip until it is released.
+# The whole stack is released on PyPI and pinned in the [e2e] extra, so this runs with
+# no pre_install_pip git-refs.
 on:
   push:
     branches: [dev]
@@ -23,11 +23,8 @@ jobs:
       # e2e is heavy (model download + native deps); a single modern Python is enough.
       python_versions: '["3.11"]'
       install_extras: "e2e"
-      # Pinned in pyproject (released): tool-call contract in ovos-plugin-manager>=2.7.0a1,
-      # memory-plugin config in ovos-persona>=0.9.0a6, PersonaServerRAGMemory in the [e2e]
-      # extra via ovos-openai-plugin>=2.0.8a1. Still unreleased:
-      #  - ovos-chromadb-embeddings-plugin only has a 0.0.0 placeholder on PyPI; the
-      #    collection-aware API needed here lives on `dev`
-      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-chromadb-embeddings-plugin@dev"
+      # The full real stack is now released and pinned in the [e2e] extra
+      # (ovos-plugin-manager>=2.7.0a1, ovos-persona>=0.9.0a6, ovos-openai-plugin>=2.0.8a1,
+      # ovos-chromadb-embeddings-plugin>=0.3.0a4) — no pre_install_pip git-refs needed.
       test_path: "tests/e2e"
       pr_comment: true
