@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.0a1) (2026-06-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a5...0.13.0a1)
+
+**Merged pull requests:**
+
+- feat: embeddings [\#11](https://github.com/OpenVoiceOS/ovos-persona-server/pull/11) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.12.0a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a5) (2026-06-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a4...0.12.0a5)
