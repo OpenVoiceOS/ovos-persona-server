@@ -56,7 +56,7 @@ e2e = [
     # real embedding + vector-store + RAG plugin stack
     "ovos-openai-plugin>=2.0.8a1",  # PersonaServerRAGMemory memory plugin
     "ovos-gguf-plugin",
-    "ovos-chromadb-embeddings-plugin",
+    "ovos-chromadb-embeddings-plugin>=0.3.0a4",  # collection-aware EmbeddingsDB API
     "ovos-qdrant-embeddings-plugin",
     "ovos-document-chunkers",
     "ovos-flashrank-reranker-plugin",
