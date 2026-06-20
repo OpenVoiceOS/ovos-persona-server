@@ -14,7 +14,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 
 bedrock_router = APIRouter(prefix="/bedrock/model", tags=["aws-bedrock"])
 
@@ -75,6 +76,70 @@ def _bedrock_chunk_frame(chunk: Dict[str, Any]) -> bytes:
         payload,
         {":event-type": "chunk", ":content-type": "application/json", ":message-type": "event"},
     )
+
+
+def _is_embedding_model(model_id: str) -> bool:
+    """Return True if ``model_id`` names a Bedrock embedding model.
+
+    Covers Amazon Titan (``amazon.titan-embed-*``) and Cohere
+    (``cohere.embed-*``) embedding model families.
+
+    Args:
+        model_id: Bedrock model identifier from the request path.
+
+    Returns:
+        Whether the model produces embeddings rather than text.
+    """
+    return "embed" in model_id.lower()
+
+
+def _extract_embed_texts(body: Dict[str, Any], model_id: str) -> List[str]:
+    """Extract the input texts from a Bedrock embedding invoke body.
+
+    Handles Cohere (``texts``) and Amazon Titan (``inputText``) request shapes.
+
+    Args:
+        body: Parsed JSON request body.
+        model_id: Bedrock model identifier (for format detection).
+
+    Returns:
+        List of input strings to embed.
+    """
+    if isinstance(body.get("texts"), list):  # Cohere embed
+        return [str(t) for t in body["texts"]]
+    if "inputText" in body:  # Amazon Titan embed
+        return [str(body["inputText"])]
+    if "input" in body:
+        value = body["input"]
+        return [str(v) for v in value] if isinstance(value, list) else [str(value)]
+    return [json.dumps(body)]
+
+
+def _build_embedding_response(vectors: List[List[float]], model_id: str,
+                              texts: List[str]) -> Dict[str, Any]:
+    """Build a model-specific Bedrock embedding response body.
+
+    Args:
+        vectors: Embedding vectors, one per input text.
+        model_id: Bedrock model ID for response-format selection.
+        texts: Original input texts (echoed for the Cohere format).
+
+    Returns:
+        Dict matching the expected response format for the model family.
+    """
+    mid = model_id.lower()
+    if "cohere.embed" in mid:
+        return {
+            "id": _new_id(),
+            "embeddings": vectors,
+            "texts": texts,
+            "response_type": "embeddings_floats",
+        }
+    # Amazon Titan returns a single embedding per invoke.
+    return {
+        "embedding": vectors[0] if vectors else [],
+        "inputTextTokenCount": sum(len(t.split()) for t in texts),
+    }
 
 
 def _extract_messages(body: Dict[str, Any], model_id: str) -> List[Dict[str, str]]:
@@ -202,8 +267,13 @@ async def invoke(
         Model-specific JSON response.
     """
     body = await request.json()
+    if _is_embedding_model(model_id):
+        embedder = await get_embeddings_backend()
+        texts = _extract_embed_texts(body, model_id)
+        vectors = embed_texts(embedder, texts)
+        return JSONResponse(_build_embedding_response(vectors, model_id, texts))
     messages = _extract_messages(body, model_id)
-    text = persona.chat(messages)
+    text = run_chat(persona, messages)
     return JSONResponse(_build_response(text or "", model_id, body))
 
 
@@ -231,7 +301,7 @@ async def invoke_stream(
     async def _stream() -> AsyncGenerator[bytes, None]:
         accumulated = []
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     accumulated.append(chunk)
                     yield _bedrock_chunk_frame(
@@ -297,7 +367,7 @@ async def converse(
         text = " ".join(b.text for b in m.content)
         messages.append({"role": m.role, "content": text})
 
-    text = persona.chat(messages)
+    text = run_chat(persona, messages)
     return JSONResponse({
         "output": {
             "message": {

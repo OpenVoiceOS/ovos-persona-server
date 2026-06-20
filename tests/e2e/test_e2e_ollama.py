@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-ollama = pytest.importorskip("ollama", reason="ollama client not installed")
+import ollama
 
 _REPLY = "The capital of France is Paris."
 _CHUNKS = ["The ", "capital ", "of ", "France ", "is ", "Paris."]

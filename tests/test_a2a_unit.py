@@ -254,7 +254,9 @@ async def test_execute_forwards_user_text_to_persona(_patch_a2a) -> None:
 
     await executor.execute(ctx, queue)
 
-    persona.stream.assert_called_once_with([{"role": "user", "content": "tell me a joke"}])
+    # run_stream passes a Session positionally alongside the messages.
+    persona.stream.assert_called_once()
+    assert persona.stream.call_args.args[0] == [{"role": "user", "content": "tell me a joke"}]
 
 
 # ---------------------------------------------------------------------------

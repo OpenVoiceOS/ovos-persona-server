@@ -13,6 +13,7 @@ A single HTTP server that exposes one OVOS `Persona` as **eight concurrent API s
 - [A2A Endpoint](#a2a-endpoint)
 - [Persona Config Examples](#persona-config-examples)
 - [Streaming](#streaming)
+- [RAG: Files & Vector Stores](#rag-files--vector-stores)
 - [Embeddings](#embeddings)
 - [Authentication](#authentication)
 - [Troubleshooting](#troubleshooting)
@@ -83,12 +84,13 @@ Every API is served on a vendor-prefixed path so multiple clients can coexist wi
 | API | Prefix | Key endpoints |
 |-----|--------|---------------|
 | OpenAI | `/openai/v1` | `POST /chat/completions`, `POST /completions`, `GET /models`, `POST /embeddings` |
-| Ollama | `/ollama/api` | `POST /chat`, `POST /generate`, `GET /tags`, `POST /embeddings` |
+| OpenAI RAG | `/openai/v1` | `…/files`, `…/vector_stores`, `…/vector_stores/{id}/search` — see [RAG](#rag-files--vector-stores) |
+| Ollama | `/ollama/api` | `POST /chat`, `POST /generate`, `GET /tags`, `POST /embed`, `POST /embeddings` |
 | Anthropic | `/anthropic/v1` | `POST /messages` |
-| Google Gemini | `/gemini/v1beta/models` | `POST /{model}:generateContent`, `POST /{model}:streamGenerateContent` |
-| Cohere | `/cohere/v1` | `POST /chat` |
-| HuggingFace TGI | `/tgi` | `POST /generate`, `POST /generate_stream` |
-| AWS Bedrock | `/bedrock/model` | `POST /{model}/invoke`, `POST /{model}/invoke-with-response-stream` |
+| Google Gemini | `/gemini/v1beta/models` | `POST /{model}:generateContent`, `:streamGenerateContent`, `:embedContent`, `:batchEmbedContents` |
+| Cohere | `/cohere/v1` | `POST /chat`, `POST /generate`, `POST /embed` |
+| HuggingFace TGI | `/tgi` | `POST /generate`, `POST /generate_stream`, `POST /embed` |
+| AWS Bedrock | `/bedrock/model` | `POST /{model}/invoke` (chat + Titan/Cohere embed), `POST /{model}/invoke-with-response-stream` |
 | A2A | `/a2a` | `GET /.well-known/agent.json`, `POST /` |
 
 ### Deprecated legacy paths
@@ -356,10 +358,108 @@ uv pip install 'ovos-persona-server[a2a]'
 Then restart the server.
 
 **Embeddings return 501**
-No solver with `get_embeddings()` is loaded. Add an embeddings solver to the persona's `solvers` list.
+No solver with `get_embeddings()` is loaded and no embeddings plugin could be loaded. Configure `TEXT_EMBEDDINGS_PLUGIN` or add an embeddings solver to the persona's `solvers` list.
 
 **Legacy `/v1/` paths return responses with `Deprecation` header**
 This is expected. Migrate to `/openai/v1/` paths. See [docs/deprecation.md](docs/deprecation.md).
+
+## RAG: Files & Vector Stores
+
+`ovos-persona-server` exposes an OpenAI-compatible **Retrieval-Augmented Generation**
+surface: upload documents, embed and index them, search by similarity, and feed the
+results into any chat endpoint. Files, embedding, and the vector DB are all backed by
+swappable OVOS plugins. Full reference: [docs/rag.md](docs/rag.md); runnable scripts in
+[examples/](examples/).
+
+> **Drop-in OpenAI replacement:** any third-party app built on OpenAI's Files /
+> Vector Stores / Embeddings endpoints can point at this server by changing only its
+> `base_url` — a self-hosted, private, zero-cost RAG backend with no code changes.
+
+```bash
+uv pip install 'ovos-persona-server[rag]' ovos-gguf-plugin ovos-chromadb-embeddings-plugin
+
+TEXT_EMBEDDINGS_PLUGIN=ovos-gguf-embeddings-plugin EMBEDDINGS_MODEL=all-MiniLM-L6-v2 \
+EMBEDDINGS_DB_PLUGIN=ovos-chromadb-embeddings-plugin \
+ovos-persona-server --persona examples/persona_rag.json
+```
+
+Drive it with the official `openai` SDK — files hit `/openai/v1/files`, the store is a
+collection in the configured vector DB:
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8337/openai/v1", api_key="unused")
+
+f = client.files.create(file=("cats.txt", b"cats are fluffy animals that sit on mats."),
+                        purpose="assistants")
+store = client.vector_stores.create(name="kb")
+client.vector_stores.files.create(vector_store_id=store.id, file_id=f.id)
+
+hits = client.vector_stores.search(vector_store_id=store.id, query="fluffy animal", max_num_results=3)
+print([(h.file_id, h.score) for h in hits.data])
+```
+
+For conversational use, the companion [`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin)
+ships `PersonaServerRAGMemory` — a persona **memory plugin** that searches a vector
+store and injects the retrieved context, composing with any chat backend. See
+[docs/rag.md](docs/rag.md#using-rag-as-a-persona-memory-plugin) and
+[examples/rag_memory_plugin.py](examples/rag_memory_plugin.py).
+
+> **Backend vs hosted agent.** By default the chat endpoints are a **stateless
+> backend** (`CHAT_MEMORY=off`): the client owns conversation state and drives the
+> Files / Vector-Stores endpoints itself — the correct behaviour for a drop-in
+> OpenAI replacement or any multi-user deployment. Set `CHAT_MEMORY=transparent` to
+> run a **single-user hosted agent** where the server folds the persona's
+> `memory_module` (history + RAG) into every turn and persists it per session. See
+> [docs/rag.md](docs/rag.md#backend-vs-hosted-agent--the-chat_memory-toggle).
+
+| Resource | Endpoints |
+| --- | --- |
+| Files | `POST/GET /openai/v1/files`, `GET …/{id}`, `GET …/{id}/content`, `DELETE …/{id}` |
+| Vector stores | `POST/GET /openai/v1/vector_stores`, `GET/POST/DELETE …/{id}`, `…/{id}/files`, `…/{id}/search` |
+
+---
+
+## Embeddings
+
+A single, swappable embeddings service backs **every** vendor surface — OpenAI
+(`/openai/v1/embeddings`), Ollama (`/ollama/api/embed` and `/embeddings`), Cohere
+(`/cohere/v1/embed`), Gemini (`:embedContent` / `:batchEmbedContents`), HuggingFace
+TGI (`/tgi/embed`), AWS Bedrock (Titan/Cohere embed models via `/invoke`), and the
+vector-store search path all delegate to the same backend. (Anthropic has no
+first-party embeddings API, so it has no embed endpoint.) This mirrors how inference
+is backed by one shared persona: swap the embeddings provider once and it changes
+everywhere. Per-surface request/response shapes: [docs/embeddings.md](docs/embeddings.md).
+
+The backend is any OVOS text-embeddings plugin, configured through the
+environment:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `TEXT_EMBEDDINGS_PLUGIN` | embeddings plugin to load | `ovos-gguf-embeddings-plugin` |
+| `EMBEDDINGS_URL` | remote embeddings service URL (OpenAI-compatible plugins) | — |
+| `EMBEDDINGS_KEY` | API key for a remote embeddings service | — |
+| `EMBEDDINGS_MODEL` | model name to request | — |
+
+Point `TEXT_EMBEDDINGS_PLUGIN` at a local model (the default gguf plugin) or at
+any remote embeddings API via an OpenAI-compatible plugin and the matching
+`EMBEDDINGS_URL` / `EMBEDDINGS_MODEL`. When no embeddings plugin is available the
+server falls back to a persona solver exposing `get_embeddings`.
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8337/openai/v1", api_key="")
+resp = client.embeddings.create(model="", input=["hello", "world"])
+print(len(resp.data), "vectors")
+```
+
+```python
+from ollama import Client
+
+client = Client(host="http://localhost:8337/ollama")
+print(client.embed(model="", input=["hello", "world"]).embeddings)
+```
 
 ---
 

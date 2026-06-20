@@ -11,7 +11,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 
 cohere_router = APIRouter(prefix="/cohere/v1", tags=["cohere"])
 
@@ -87,7 +88,7 @@ async def cohere_chat(
 
     if not request.stream:
         try:
-            text = persona.chat(messages)
+            text = run_chat(persona, messages)
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=str(exc)) from exc
@@ -107,7 +108,7 @@ async def cohere_chat(
     async def _stream() -> AsyncGenerator[str, None]:
         accumulated = []
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     accumulated.append(chunk)
                     yield json.dumps({"event_type": "text-generation", "text": chunk}) + "\n"
@@ -151,7 +152,7 @@ async def cohere_generate(
 
     if not request.stream:
         try:
-            text = persona.chat(messages)
+            text = run_chat(persona, messages)
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=str(exc)) from exc
@@ -163,7 +164,7 @@ async def cohere_generate(
     async def _stream() -> AsyncGenerator[str, None]:
         accumulated = []
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     accumulated.append(chunk)
                     yield json.dumps({"text": chunk, "is_finished": False}) + "\n"
@@ -185,32 +186,27 @@ async def cohere_generate(
 @cohere_router.post("/embed", response_model=None)
 async def cohere_embed(
         request: CohereEmbedRequest,
-        persona: Persona = Depends(get_default_persona),
+        embedder=Depends(get_embeddings_backend),
         authorization: Optional[str] = Header(default=None),
 ) -> JSONResponse:
     """Generate embeddings (Cohere-compatible).
 
+    Delegates to the shared embeddings backend (:func:`get_embeddings_backend`) —
+    the same service used by the OpenAI and Ollama embedding endpoints — so the
+    embeddings provider is swapped in one place for every vendor surface.
+
     Args:
         request: Cohere embed request.
-        persona: Injected persona instance.
+        embedder: Injected shared embeddings backend.
         authorization: Bearer token (accepted, ignored).
 
     Returns:
-        Embeddings response or 501 if no solver.
+        Cohere-format embeddings response.
 
     Raises:
-        HTTPException: 501 if no embeddings solver configured.
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
     """
-    embed_solver = None
-    for solver in persona.solvers.loaded_modules.values():
-        if hasattr(solver, "get_embeddings"):
-            embed_solver = solver
-            break
-    if embed_solver is None:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                            detail="No embeddings solver configured for this persona.")
-
-    embeddings = [embed_solver.get_embeddings(t) for t in request.texts]
+    embeddings = embed_texts(embedder, request.texts)
     return JSONResponse({
         "id": _new_id(),
         "embeddings": embeddings,

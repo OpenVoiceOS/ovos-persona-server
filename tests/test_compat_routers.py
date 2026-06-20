@@ -28,10 +28,10 @@ class FakePersona:
     name: str = "fake-persona"
     config: dict = {}
 
-    def chat(self, messages: List[Dict], **kwargs) -> str:
+    def chat(self, messages: List[Dict], sess=None, **kwargs) -> str:
         return "hello from fake persona"
 
-    def stream(self, messages: List[Dict], **kwargs) -> Generator[str, None, None]:
+    def stream(self, messages: List[Dict], sess=None, **kwargs) -> Generator[str, None, None]:
         for word in ["hello", " ", "streaming"]:
             yield word
 

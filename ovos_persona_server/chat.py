@@ -6,25 +6,87 @@ and legacy text completions, allowing interaction with the OVOS Persona
 system using OpenAI's API specifications.
 """
 
+import base64
 import json
 import random
 import string
+import struct
 import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, status, Depends, FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
+from ovos_bus_client.session import SessionManager
 from ovos_persona import Persona
+from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
 from pydantic import BaseModel, Field
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
     ChatCompletionResponseMessage, ChatCompletionChoice, ChatCompletionStreamChoice,
+    ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
     CompletionUsage, FinishReason,
     CreateCompletionRequest, CreateCompletionResponse
 )
+
+
+def _flatten_text(content: Any) -> str:
+    """Coerce OpenAI message content (str | content-parts | None) to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
+        return " ".join(p for p in parts if p)
+    return str(content)
+
+
+def _role(raw: Any) -> MessageRole:
+    """Map an OpenAI role string to MessageRole (legacy 'function' -> tool)."""
+    raw = getattr(raw, "value", raw)
+    if raw == "function":
+        raw = "tool"
+    try:
+        return MessageRole(raw)
+    except ValueError:
+        return MessageRole.USER
+
+
+def _messages_to_agent(messages: List[Dict[str, Any]]) -> List[AgentMessage]:
+    """Convert OpenAI message dicts (incl. assistant tool_calls / tool results) to AgentMessages."""
+    out: List[AgentMessage] = []
+    for m in messages:
+        tool_calls = None
+        if m.get("tool_calls"):
+            tool_calls = []
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+                tool_calls.append(ToolCall(id=tc.get("id") or "", name=fn.get("name", ""), arguments=args))
+        out.append(AgentMessage(
+            role=_role(m.get("role", "user")),
+            content=_flatten_text(m.get("content")),
+            tool_calls=tool_calls,
+            tool_call_id=m.get("tool_call_id"),
+            name=m.get("name") or None,
+        ))
+    return out
+
+
+def _tool_capable_engine(persona: Persona):
+    """Return the persona's first chat handler advertising native tool support, or None."""
+    try:
+        modules = list(persona.solvers.modules)
+    except Exception:  # noqa: BLE001
+        modules = list(getattr(persona.solvers, "loaded_modules", {}).values())
+    return next((m for m in modules if getattr(m, "supports_tools", False)), None)
 
 
 @asynccontextmanager
@@ -48,8 +110,12 @@ async def chat_completions(
 ) -> Union[JSONResponse, StreamingResponse]:
     """Handle OpenAI-compatible chat completions (streaming and non-streaming).
 
-    Only ``messages`` and ``stream`` are forwarded to the persona; all other
-    OpenAI parameters are accepted and silently ignored.
+    When ``tools`` is supplied it is honored if the persona has a tool-capable chat
+    engine (``supports_tools``): the request is routed to it and any ``tool_calls`` are
+    returned (``finish_reason="tool_calls"``) for the client to execute — the server is
+    a stateless function-calling passthrough, it does not run the tools itself. If no
+    tool-capable engine is configured, a 501 is returned rather than silently ignoring
+    ``tools``. Remaining OpenAI parameters are accepted and not acted upon.
 
     Args:
         request_body: Chat completion request containing messages and options.
@@ -67,10 +133,65 @@ async def chat_completions(
 
     completion_id: str = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
     completion_timestamp: int = int(time.time())
+
+    # Function-calling: honor `tools` via a tool-capable engine, or fail loudly.
+    if request_body.tools:
+        if stream:
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                                detail="Tool calling is not supported with stream=true; use stream=false.")
+        engine = _tool_capable_engine(persona)
+        if engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="The configured persona has no tool-capable chat engine; "
+                       "the 'tools' parameter cannot be honored.")
+        tool_specs = [t.model_dump(exclude_unset=True) for t in request_body.tools]
+        sess = SessionManager().get()
+        try:
+            resp = engine.continue_chat(_messages_to_agent(messages),
+                                        session_id=sess.session_id, lang=sess.lang,
+                                        units=sess.system_unit, tools=tool_specs)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Persona chat failed: {e}") from e
+
+        rc_tool_calls: List[ChatCompletionMessageToolCall] = []
+        finish_reason = FinishReason.STOP
+        if getattr(resp, "tool_calls", None):
+            rc_tool_calls = [
+                ChatCompletionMessageToolCall(
+                    id=tc.id, type="function",
+                    function=ChatCompletionMessageToolCallFunction(
+                        name=tc.name, arguments=json.dumps(tc.arguments)))
+                for tc in resp.tool_calls
+            ]
+            finish_reason = FinishReason.TOOL_CALLS
+
+        prompt_tokens = sum(len((msg.get("content") or "").split()) for msg in messages) if messages else 0
+        completion_tokens = len((resp.content or "").split())
+        return JSONResponse(content=CreateChatCompletionResponse(
+            id=f"chatcmpl-{completion_id}",
+            object="chat.completion",
+            created=completion_timestamp,
+            model=persona.name,
+            choices=[ChatCompletionChoice(
+                index=0,
+                message=ChatCompletionResponseMessage(
+                    role="assistant", content=resp.content or "", tool_calls=rc_tool_calls),
+                finish_reason=finish_reason,
+            )],
+            usage=CompletionUsage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+                                  total_tokens=prompt_tokens + completion_tokens),
+            tools=request_body.tools,
+            tool_choice=request_body.tool_choice,
+            parallel_tool_calls=request_body.parallel_tool_calls,
+        ).model_dump(exclude_unset=True))
+
     if not stream:
         try:
-            # Call persona's chat method
-            content: str = persona.chat(messages)
+            # Call persona's chat method. In transparent-memory mode the optional
+            # OpenAI `user` field namespaces server-side history per caller.
+            content: str = run_chat(persona, messages, session_id=request_body.user)
 
             # Basic token count estimation
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
@@ -135,7 +256,7 @@ async def chat_completions(
 
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages, session_id=request_body.user):
                 if chunk:  # Only send if chunk is not empty
                     current_completion_tokens += len(chunk.split())  # Basic token count
                     stream_chunk = CreateChatCompletionStreamResponse(
@@ -233,7 +354,7 @@ async def create_completion(
 
     if not stream:
         try:
-            content: str = persona.chat(messages)
+            content: str = run_chat(persona, messages)
 
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
             completion_tokens: int = len(content.split())
@@ -269,7 +390,7 @@ async def create_completion(
         """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
@@ -345,45 +466,41 @@ class OpenAIEmbeddingsRequest(BaseModel):
 @chat_router.post("/embeddings")
 async def embeddings(
         request_body: OpenAIEmbeddingsRequest,
-        persona: Persona = Depends(get_default_persona),
+        embedder=Depends(get_embeddings_backend),
 ) -> JSONResponse:
-    """Generate embeddings (OpenAI-compatible stub).
+    """Generate embeddings (OpenAI-compatible).
 
-    Delegates to persona's embeddings solver if available.
+    Delegates to the shared, swappable embeddings backend
+    (:func:`get_embeddings_backend`) — the same service used by the Ollama
+    endpoint and vector-store search. Configure it via ``TEXT_EMBEDDINGS_PLUGIN``
+    / ``EMBEDDINGS_URL`` / ``EMBEDDINGS_MODEL`` to point at any embeddings provider.
 
     Args:
         request_body: OpenAI embeddings request with model and input.
-        persona: Injected persona instance.
+        embedder: Injected shared embeddings backend.
 
     Returns:
-        Embeddings response or 501 if not supported.
+        OpenAI-format embeddings response.
 
     Raises:
-        HTTPException: 501 if no embeddings solver is configured.
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
     """
-    solver_names = list(persona.solvers.loaded_modules.keys())
-    embed_solver = None
-    for name in solver_names:
-        solver = persona.solvers.loaded_modules[name]
-        if hasattr(solver, "get_embeddings"):
-            embed_solver = solver
-            break
-
-    if embed_solver is None:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="No embeddings solver configured for this persona.",
-        )
-
     texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
-    data = []
-    for i, t in enumerate(texts):
-        vec = embed_solver.get_embeddings(t)
-        data.append({"object": "embedding", "embedding": vec, "index": i})
+    vectors = embed_texts(embedder, texts)
+    # The official openai SDK requests encoding_format="base64" by default and
+    # decodes float32 buffers client-side; honour it for SDK compatibility.
+    if request_body.encoding_format == "base64":
+        encoded = [base64.b64encode(struct.pack(f"<{len(vec)}f", *vec)).decode("ascii")
+                   for vec in vectors]
+        data = [{"object": "embedding", "embedding": e, "index": i} for i, e in enumerate(encoded)]
+    else:
+        data = [{"object": "embedding", "embedding": vec, "index": i}
+                for i, vec in enumerate(vectors)]
+    prompt_tokens = sum(len(t.split()) for t in texts)
 
     return JSONResponse({
         "object": "list",
         "data": data,
-        "model": request_body.model,
-        "usage": {"prompt_tokens": 0, "total_tokens": 0},
+        "model": backend_model_name(embedder, request_body.model),
+        "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
     })

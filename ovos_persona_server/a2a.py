@@ -15,6 +15,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Optional
 
+from ovos_persona_server.persona import run_stream
+
 LOG = logging.getLogger(__name__)
 
 # Sentinel names so monkeypatch works without a2a-sdk installed
@@ -159,7 +161,7 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
 
         # Persona.stream is synchronous — run in a thread pool
         chunks = await asyncio.to_thread(
-            lambda: list(self._persona.stream(messages))
+            lambda: list(run_stream(self._persona, messages))
         )
 
         for i, chunk in enumerate(chunks):

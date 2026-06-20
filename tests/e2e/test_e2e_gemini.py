@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-genai = pytest.importorskip("google.genai", reason="google-genai SDK not installed")
+import google.genai as genai
 from google.genai import types  # noqa: E402
 
 _CHAT_REPLY = "The capital of France is Paris."
@@ -52,7 +52,7 @@ def _build_app() -> FastAPI:
     persona = MagicMock()
     persona.name = "test-persona"
     persona.chat.return_value = _CHAT_REPLY
-    persona.stream.side_effect = lambda messages: iter(_STREAM_CHUNKS)
+    persona.stream.side_effect = lambda messages, **kwargs: iter(_STREAM_CHUNKS)
 
     app = FastAPI()
     app.include_router(gemini_router)

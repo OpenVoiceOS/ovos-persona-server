@@ -233,6 +233,8 @@ class TestRegisterDeprecatedRoutes:
             ):
                 register_deprecated_routes(app)
 
-        # The app should have routes mounted (more than just the default OpenAPI ones)
-        route_paths = [r.path for r in app.routes]
+        # The app should have legacy routes mounted. Newer FastAPI wraps included
+        # routers in app.routes (no flat `.path`), so assert via the OpenAPI schema,
+        # which is the authoritative list of registered paths.
+        route_paths = list(app.openapi()["paths"].keys())
         assert any("/v1/" in p for p in route_paths), f"No /v1/ routes found: {route_paths}"

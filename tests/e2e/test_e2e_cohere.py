@@ -32,7 +32,7 @@ import uvicorn
 from fastapi import FastAPI
 from unittest.mock import MagicMock
 
-cohere = pytest.importorskip("cohere", reason="cohere SDK not installed")
+import cohere
 
 _CHAT_REPLY = "The capital of France is Paris."
 _STREAM_CHUNKS = ["The ", "capital ", "of ", "France ", "is ", "Paris."]
@@ -51,7 +51,7 @@ def _build_app() -> FastAPI:
     persona = MagicMock()
     persona.name = "test-persona"
     persona.chat.return_value = _CHAT_REPLY
-    persona.stream.side_effect = lambda messages: iter(_STREAM_CHUNKS)
+    persona.stream.side_effect = lambda messages, **kwargs: iter(_STREAM_CHUNKS)
 
     app = FastAPI()
     app.include_router(cohere_router)

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
 from ovos_persona_server.schemas.anthropic import (
     AnthropicContentBlock,
     AnthropicRequest,
@@ -65,7 +65,7 @@ async def create_message(
 
     if not request.stream:
         try:
-            content = persona.chat(messages)
+            content = run_chat(persona, messages)
             return JSONResponse(AnthropicResponse(
                 id=msg_id,
                 content=[AnthropicContentBlock(type="text", text=content)],
@@ -94,7 +94,7 @@ async def create_message(
         )
 
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     delta = json.dumps({
                         "type": "content_block_delta",
