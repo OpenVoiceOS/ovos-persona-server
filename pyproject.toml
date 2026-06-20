@@ -54,6 +54,7 @@ e2e = [
     "uvicorn",
     "httpx",
     # real embedding + vector-store + RAG plugin stack
+    "ovos-openai-plugin>=2.0.8a1",  # PersonaServerRAGMemory memory plugin
     "ovos-gguf-plugin",
     "ovos-chromadb-embeddings-plugin",
     "ovos-qdrant-embeddings-plugin",

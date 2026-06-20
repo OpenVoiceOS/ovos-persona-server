@@ -23,13 +23,11 @@ jobs:
       # e2e is heavy (model download + native deps); a single modern Python is enough.
       python_versions: '["3.11"]'
       install_extras: "e2e"
-      # Released and pinned in pyproject: the tool-call contract (MessageRole.TOOL,
-      # ToolCall) in ovos-plugin-manager>=2.7.0a1, and memory-plugin config passing in
-      # ovos-persona>=0.9.0a6. Still unreleased, installed here so the [e2e] extra is
-      # satisfied by them:
-      #  - PersonaServerRAGMemory lives on the ovos-openai-plugin `opm-agents` branch (PR #54)
+      # Pinned in pyproject (released): tool-call contract in ovos-plugin-manager>=2.7.0a1,
+      # memory-plugin config in ovos-persona>=0.9.0a6, PersonaServerRAGMemory in the [e2e]
+      # extra via ovos-openai-plugin>=2.0.8a1. Still unreleased:
       #  - ovos-chromadb-embeddings-plugin only has a 0.0.0 placeholder on PyPI; the
       #    collection-aware API needed here lives on `dev`
-      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-openai-plugin@opm-agents git+https://github.com/OpenVoiceOS/ovos-chromadb-embeddings-plugin@dev"
+      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-chromadb-embeddings-plugin@dev"
       test_path: "tests/e2e"
       pr_comment: true
