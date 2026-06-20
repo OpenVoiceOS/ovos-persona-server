@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.1a1) (2026-06-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.0a1...0.13.1a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): pin released ovos-chromadb-embeddings-plugin\>=0.3.0a4; drop last git-ref [\#58](https://github.com/OpenVoiceOS/ovos-persona-server/pull/58) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.0a1) (2026-06-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a5...0.13.0a1)
