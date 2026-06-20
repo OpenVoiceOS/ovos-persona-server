@@ -21,8 +21,8 @@ keywords = [
 ]
 dependencies = [
     "fastapi",
-    "ovos-persona>=0.9.0a5",  # Persona.chat(messages, sess) signature
-    "ovos-plugin-manager>=2.4.0a1",  # AgentTool/ToolBox templates + AGENT_TOOLBOX
+    "ovos-persona>=0.9.0a6",  # memory plugin receives persona config (feat/memory-plugin-config)
+    "ovos-plugin-manager>=2.7.0a1,<3.0.0",  # tool-call contract (ToolCall, MessageRole.TOOL) + AGENT_TOOLBOX
     "ovos-workshop",
     "pydantic",
     "uvicorn",

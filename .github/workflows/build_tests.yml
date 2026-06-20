@@ -10,9 +10,8 @@ jobs:
     secrets: inherit
     with:
       install_extras: "dev,mcp"
-      # the OpenAI chat surface now honors `tools` (imports the tool contract:
-      # ToolCall, MessageRole.TOOL); install the plugin-manager branch until it releases.
-      pre_install_pip: "git+https://github.com/OpenVoiceOS/ovos-plugin-manager@feat/agent-tool-calling"
+      # the OpenAI chat surface honors `tools` via the tool contract (ToolCall,
+      # MessageRole.TOOL), released in ovos-plugin-manager>=2.7.0a1 (pinned in pyproject).
       # e2e tests need heavy real plugins (gguf model download, chromadb/qdrant)
       # and run in their own workflow (e2e.yml); keep the unit matrix fast here.
       test_path: "tests --ignore=tests/e2e"
