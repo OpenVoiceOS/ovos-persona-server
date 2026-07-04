@@ -8,3 +8,8 @@ jobs:
   license_tests:
     uses: OpenVoiceOS/gh-automations/.github/workflows/license-check.yml@dev
     secrets: inherit
+    with:
+      # marisa-trie (transitive via langcodes -> language-data) is dual-licensed
+      # "MIT AND (BSD-2-Clause OR LGPL-2.1-or-later)"; the permissive BSD-2-Clause
+      # branch applies, but the classifier flags the LGPL alternative as WeakCopyleft.
+      exclude_packages: "(?i:^marisa-trie([=<>!~ @;].*)?$)"
