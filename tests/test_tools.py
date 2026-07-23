@@ -54,13 +54,15 @@ class AddOutput(ToolOutput):
 class FakeToolBox(ToolBox):
     """Minimal in-process ToolBox with two deterministic tools.
 
-    Follows the plugin contract: the plugin itself owns its ``toolbox_id``
-    and passes it to the parent class; the loader never passes one in.
+    Follows the plugin contract: ``toolbox_id`` is a class attribute owned
+    by the plugin, and the constructor takes ``config`` then ``bus`` (the
+    loader always calls ``cls(config=cfg, bus=bus)``).
     """
 
-    def __init__(self, config: Dict[str, Any] = None) -> None:
-        self.config = config or {}
-        super().__init__(toolbox_id="fake_toolbox")
+    toolbox_id = "fake_toolbox"
+
+    def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+        super().__init__(config=config, bus=bus)
 
     def discover_tools(self) -> List[AgentTool]:
         return [
@@ -131,6 +133,8 @@ class TestToolDiscovery:
     def test_failed_plugin_skipped(self):
         """A ToolBox that raises in __init__ is skipped without crashing."""
         class BrokenToolBox(ToolBox):
+            toolbox_id = "broken"
+
             def __init__(self, **kwargs):
                 raise RuntimeError("broken")
 
@@ -382,9 +386,10 @@ class TestToolDiscoveryExtended:
             return BoomOutput()
 
         class BoomBox(ToolBox):
-            def __init__(self, config: Dict[str, Any] = None) -> None:
-                self.config = config or {}
-                super().__init__(toolbox_id="boom_box")
+            toolbox_id = "boom_box"
+
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -440,9 +445,10 @@ class TestUTCPEdgeCases:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
-            def __init__(self, config: Dict[str, Any] = None) -> None:
-                self.config = config or {}
-                super().__init__(toolbox_id="boom_box")
+            toolbox_id = "boom_box"
+
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -518,9 +524,10 @@ class TestMCPServerExtended:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
-            def __init__(self, config: Dict[str, Any] = None) -> None:
-                self.config = config or {}
-                super().__init__(toolbox_id="boom_box")
+            toolbox_id = "boom_box"
+
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -588,17 +595,16 @@ class TestNoneRegistryFallbacks:
             schemas = list_tool_schemas(registry=None)
         assert len(schemas) >= 1
 
-    def test_bare_toolbox_missing_toolbox_id_is_skipped(self):
+    def test_bare_toolbox_missing_class_toolbox_id_is_skipped(self):
         """
-        The loader always instantiates plugins with ``cls()``. A ToolBox
-        subclass that does not override ``__init__`` (and therefore requires
-        the template's ``toolbox_id`` kwarg) fails to instantiate and is
-        logged+skipped, while the other, well-behaved plugins still load.
+        The loader always calls ``cls(config=cfg, bus=bus)``. A ToolBox
+        subclass that does not declare a class-level ``toolbox_id`` fails
+        the base class's validation and is logged+skipped, while the
+        other, well-behaved plugins still load.
         """
         class BareToolBox(ToolBox):
-            """Does not override __init__; inherits the template's, which
-            requires an explicit ``toolbox_id`` kwarg — broken under the
-            no-argument loader contract."""
+            """Does not declare a class-level toolbox_id — invalid under
+            the contract, which raises ValueError at construction."""
 
             def discover_tools(self) -> List[AgentTool]:
                 return []

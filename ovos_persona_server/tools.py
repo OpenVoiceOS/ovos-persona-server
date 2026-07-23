@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ovos_utils.log import LOG
 
+from ovos_persona_server.config import settings
+
 # PluginTypes.AGENT_TOOLBOX → "opm.agents.toolbox"
 try:
     from ovos_plugin_manager.utils import find_plugins, PluginTypes
@@ -35,6 +37,17 @@ def _load_toolboxes() -> List[Any]:
     """
     Instantiate every installed ``ToolBox`` plugin.
 
+    Per the OPM ``ToolBox`` contract, ``toolbox_id`` is a class attribute
+    owned by the plugin (not a constructor argument), so the loader makes
+    exactly one call: ``cls(config=cfg, bus=bus)``. There is no per-toolbox
+    section in :class:`~ovos_persona_server.config.Settings` today, so the
+    plugin is handed the same top-level persona config blob solver plugins
+    already receive (``settings.persona_config``, keyed by plugin name via
+    the ``self.llm_solver: {...}`` convention) — a well-behaved toolbox can
+    look up its own ``toolbox_id`` key there for plugin-specific options,
+    the same way solvers look up theirs. This server has no message bus of
+    its own (it is a plain FastAPI process), so ``bus`` is always ``None``.
+
     Returns:
         List of live ``ToolBox`` instances.  Plugins that fail to instantiate
         are skipped with a warning so one bad plugin cannot block the others.
@@ -45,9 +58,11 @@ def _load_toolboxes() -> List[Any]:
 
     plugin_classes: Dict[str, Any] = find_plugins(_TOOLBOX_ENTRY_POINT)
     instances: List[Any] = []
+    cfg = settings.persona_config
+    bus = None
     for name, cls in plugin_classes.items():
         try:
-            instance = cls()
+            instance = cls(config=cfg, bus=bus)
             instances.append(instance)
             LOG.debug("Loaded ToolBox plugin: %s", name)
         except Exception as exc:
