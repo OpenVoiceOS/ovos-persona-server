@@ -54,15 +54,14 @@ class AddOutput(ToolOutput):
 class FakeToolBox(ToolBox):
     """Minimal in-process ToolBox with two deterministic tools.
 
-    Follows the plugin contract: ``toolbox_id`` is a class attribute owned
-    by the plugin, and the constructor takes ``config`` then ``bus`` (the
-    loader always calls ``cls(config=cfg, bus=bus)``).
+    Follows the plugin contract: ``toolbox_id`` is supplied by the plugin's
+    own ``__init__`` via ``super().__init__(toolbox_id=...)``, and the
+    constructor takes ``config`` then ``bus`` (the loader always calls
+    ``cls(config=cfg, bus=bus)``).
     """
 
-    toolbox_id = "fake_toolbox"
-
     def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-        super().__init__(config=config, bus=bus)
+        super().__init__(toolbox_id="fake_toolbox", config=config, bus=bus)
 
     def discover_tools(self) -> List[AgentTool]:
         return [
@@ -133,8 +132,6 @@ class TestToolDiscovery:
     def test_failed_plugin_skipped(self):
         """A ToolBox that raises in __init__ is skipped without crashing."""
         class BrokenToolBox(ToolBox):
-            toolbox_id = "broken"
-
             def __init__(self, **kwargs):
                 raise RuntimeError("broken")
 
@@ -386,10 +383,8 @@ class TestToolDiscoveryExtended:
             return BoomOutput()
 
         class BoomBox(ToolBox):
-            toolbox_id = "boom_box"
-
             def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-                super().__init__(config=config, bus=bus)
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -445,10 +440,8 @@ class TestUTCPEdgeCases:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
-            toolbox_id = "boom_box"
-
             def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-                super().__init__(config=config, bus=bus)
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -524,10 +517,8 @@ class TestMCPServerExtended:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
-            toolbox_id = "boom_box"
-
             def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-                super().__init__(config=config, bus=bus)
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
 
             def discover_tools(self):
                 return [AgentTool(
@@ -595,16 +586,24 @@ class TestNoneRegistryFallbacks:
             schemas = list_tool_schemas(registry=None)
         assert len(schemas) >= 1
 
-    def test_bare_toolbox_missing_class_toolbox_id_is_skipped(self):
+    def test_bare_toolbox_that_fails_to_construct_is_skipped(self):
         """
-        The loader always calls ``cls(config=cfg, bus=bus)``. A ToolBox
-        subclass that does not declare a class-level ``toolbox_id`` fails
-        the base class's validation and is logged+skipped, while the
-        other, well-behaved plugins still load.
+        The loader always calls ``cls(config=cfg, bus=bus)``. There is no
+        class-level ``toolbox_id`` requirement any more — ``toolbox_id`` is
+        supplied by each plugin's own ``__init__`` via
+        ``super().__init__(toolbox_id=..., config=config, bus=bus)``. A
+        plugin that forgets to do this (and so fails to satisfy the base
+        class's required ``toolbox_id`` constructor argument) still raises
+        at construction time, and the loader logs+skips it while the other,
+        well-behaved plugins still load.
         """
         class BareToolBox(ToolBox):
-            """Does not declare a class-level toolbox_id — invalid under
-            the contract, which raises ValueError at construction."""
+            """Does not forward toolbox_id to super().__init__ — the base
+            class's required ``toolbox_id`` argument is missing, so
+            construction raises a TypeError."""
+
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(config=config, bus=bus)  # missing toolbox_id
 
             def discover_tools(self) -> List[AgentTool]:
                 return []

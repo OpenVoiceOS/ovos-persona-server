@@ -37,9 +37,10 @@ def _load_toolboxes() -> List[Any]:
     """
     Instantiate every installed ``ToolBox`` plugin.
 
-    Per the OPM ``ToolBox`` contract, ``toolbox_id`` is a class attribute
-    owned by the plugin (not a constructor argument), so the loader makes
-    exactly one call: ``cls(config=cfg, bus=bus)``. There is no per-toolbox
+    Per the OPM ``ToolBox`` contract, ``toolbox_id`` is supplied by each
+    plugin's own ``__init__`` (via ``super().__init__(toolbox_id=...)``), not
+    passed in by the loader, so the loader makes exactly one call:
+    ``cls(config=cfg, bus=bus)``. There is no per-toolbox
     section in :class:`~ovos_persona_server.config.Settings` today, so the
     plugin is handed the same top-level persona config blob solver plugins
     already receive (``settings.persona_config``, keyed by plugin name via
