@@ -47,7 +47,7 @@ def _load_toolboxes() -> List[Any]:
     instances: List[Any] = []
     for name, cls in plugin_classes.items():
         try:
-            instance = cls(toolbox_id=name)
+            instance = cls()
             instances.append(instance)
             LOG.debug("Loaded ToolBox plugin: %s", name)
         except Exception as exc:

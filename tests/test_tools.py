@@ -52,7 +52,15 @@ class AddOutput(ToolOutput):
 
 
 class FakeToolBox(ToolBox):
-    """Minimal in-process ToolBox with two deterministic tools."""
+    """Minimal in-process ToolBox with two deterministic tools.
+
+    Follows the plugin contract: the plugin itself owns its ``toolbox_id``
+    and passes it to the parent class; the loader never passes one in.
+    """
+
+    def __init__(self, config: Dict[str, Any] = None) -> None:
+        self.config = config or {}
+        super().__init__(toolbox_id="fake_toolbox")
 
     def discover_tools(self) -> List[AgentTool]:
         return [
@@ -80,7 +88,7 @@ def _build_fake_registry() -> Dict[str, Any]:
     """Return the module-level fake registry, building it once."""
     global _FAKE_REGISTRY
     if not _FAKE_REGISTRY:
-        tb = FakeToolBox(toolbox_id="fake_toolbox")
+        tb = FakeToolBox()
         _FAKE_REGISTRY = {name: (tb, tool) for name, tool in tb.tools.items()}
     return _FAKE_REGISTRY
 
@@ -374,6 +382,10 @@ class TestToolDiscoveryExtended:
             return BoomOutput()
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None) -> None:
+                self.config = config or {}
+                super().__init__(toolbox_id="boom_box")
+
             def discover_tools(self):
                 return [AgentTool(
                     name="boom",
@@ -383,7 +395,7 @@ class TestToolDiscoveryExtended:
                     tool_call=_boom,
                 )]
 
-        tb = BoomBox(toolbox_id="boom_box")
+        tb = BoomBox()
         reg = {"boom": (tb, tb.tools["boom"])}
 
         from ovos_persona_server.tools import invoke_tool
@@ -428,6 +440,10 @@ class TestUTCPEdgeCases:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None) -> None:
+                self.config = config or {}
+                super().__init__(toolbox_id="boom_box")
+
             def discover_tools(self):
                 return [AgentTool(
                     name="crasher",
@@ -437,7 +453,7 @@ class TestUTCPEdgeCases:
                     tool_call=lambda args: (_ for _ in ()).throw(RuntimeError("boom")),
                 )]
 
-        tb = BoomBox(toolbox_id="boom_box")
+        tb = BoomBox()
         reg = {"crasher": (tb, tb.tools["crasher"])}
 
         from fastapi import FastAPI
@@ -502,6 +518,10 @@ class TestMCPServerExtended:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None) -> None:
+                self.config = config or {}
+                super().__init__(toolbox_id="boom_box")
+
             def discover_tools(self):
                 return [AgentTool(
                     name="errortool",
@@ -567,6 +587,33 @@ class TestNoneRegistryFallbacks:
         ):
             schemas = list_tool_schemas(registry=None)
         assert len(schemas) >= 1
+
+    def test_bare_toolbox_missing_toolbox_id_is_skipped(self):
+        """
+        The loader always instantiates plugins with ``cls()``. A ToolBox
+        subclass that does not override ``__init__`` (and therefore requires
+        the template's ``toolbox_id`` kwarg) fails to instantiate and is
+        logged+skipped, while the other, well-behaved plugins still load.
+        """
+        class BareToolBox(ToolBox):
+            """Does not override __init__; inherits the template's, which
+            requires an explicit ``toolbox_id`` kwarg — broken under the
+            no-argument loader contract."""
+
+            def discover_tools(self) -> List[AgentTool]:
+                return []
+
+        with patch(
+            "ovos_persona_server.tools.find_plugins",
+            return_value={"bare_toolbox": BareToolBox, "fake_toolbox": FakeToolBox},
+        ):
+            from ovos_persona_server.tools import get_flat_tool_registry
+            registry = get_flat_tool_registry()
+        # The well-behaved plugin still loads, the broken one is silently
+        # skipped (no exception propagates and no tools of its own appear).
+        assert "echo" in registry
+        assert "add" in registry
+        assert len(registry) == 2
 
     def test_refresh_tools_exception_silenced(self):
         """If refresh_tools raises, it is silently skipped and tools still load."""
