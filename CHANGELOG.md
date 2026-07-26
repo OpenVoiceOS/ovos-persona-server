@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a1) (2026-07-26)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.2a1...0.13.3a1)
+
+**Merged pull requests:**
+
+- fix: env-var persona fallback when no --persona \(crash on bare launch\) [\#63](https://github.com/OpenVoiceOS/ovos-persona-server/pull/63) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.2a1) (2026-07-23)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.1a1...0.13.2a1)
