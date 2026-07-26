@@ -49,9 +49,17 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
         FastAPI: The configured FastAPI application instance.
     """
 
-    with open(persona_path) as f:
-        persona = json.load(f)
+    if persona_path:
+        with open(persona_path) as f:
+            persona = json.load(f)
         persona["name"] = persona.get("name") or os.path.basename(persona_path)
+    else:
+        # No persona file: fall back to the env-var-driven default persona
+        # (Settings.persona_config also honors the PERSONA_PATH env var) — this is
+        # the behavior the config docstrings describe.
+        from ovos_persona_server.config import Settings
+        persona = Settings().persona_config
+        persona["name"] = persona.get("name") or "persona"
 
     # TODO - move to dependency injection
     ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
