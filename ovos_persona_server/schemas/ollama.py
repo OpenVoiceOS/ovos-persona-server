@@ -239,3 +239,33 @@ class OllamaEmbedResponse(BaseModel):
     load_duration: Optional[int] = Field(None, description="Time spent loading the model into memory in nanoseconds.")
     prompt_eval_count: Optional[int] = Field(None, description="Number of tokens in the prompt (or total tokens for multiple inputs).")
 
+
+class OllamaEmbeddingsRequest(BaseModel):
+    """
+    Request body for the legacy ``POST /api/embeddings`` endpoint.
+
+    The official ``ollama`` client's ``embeddings()`` method targets this path
+    with a single ``prompt`` string (distinct from the newer ``/api/embed``
+    endpoint which takes ``input``).
+
+    Attributes:
+        model (str): The model name to use for generating the embedding.
+        prompt (str): The text to generate an embedding for.
+        options (Optional[Dict[str, Any]]): Additional model parameters.
+        keep_alive (Optional[str]): How long the model stays loaded (default ``5m``).
+    """
+    model: Optional[str] = Field(None, description="The model name to use for generating the embedding.")
+    prompt: str = Field(..., description="The text to generate an embedding for.")
+    options: Optional[Dict[str, Any]] = Field(None, description="Additional model parameters.")
+    keep_alive: Optional[str] = Field("5m", description="Controls how long the model stays loaded into memory following the request.")
+
+
+class OllamaEmbeddingsResponse(BaseModel):
+    """
+    Response body for the legacy ``POST /api/embeddings`` endpoint.
+
+    Attributes:
+        embedding (List[float]): The embedding vector for the prompt.
+    """
+    embedding: List[float] = Field(..., description="The embedding vector for the prompt.")
+
