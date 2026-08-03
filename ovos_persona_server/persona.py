@@ -43,6 +43,33 @@ def _last_user_utterance(messages: List[dict]) -> str:
     return ""
 
 
+def _dicts_to_agent_messages(messages: List[dict]) -> List[AgentMessage]:
+    """Convert OpenAI-style message dicts to AgentMessage objects.
+
+    Persona.chat/stream's type contract is ``List[AgentMessage]`` (see
+    ovos_persona.Persona.chat, which forwards straight to
+    ``self.solvers.chat_completion(messages, ...)`` with no conversion of
+    its own). The stateless path in run_chat/run_stream below was passing
+    the raw request dicts through unconverted, so any QuestionSolver-based
+    plugin (e.g. ovos-solver-plugin-ddg) crashed on ``messages[-1].content``
+    since plain dicts have no ``.content`` attribute.
+    """
+    out: List[AgentMessage] = []
+    for m in messages:
+        content: Any = m.get("content")
+        if isinstance(content, list):  # content-parts
+            parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
+            content = " ".join(p for p in parts if p)
+        elif content is not None and not isinstance(content, str):
+            content = str(content)
+        try:
+            role = MessageRole(m.get("role") or "user")
+        except ValueError:
+            role = MessageRole.USER
+        out.append(AgentMessage(role, content or ""))
+    return out
+
+
 def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = None,
              memory: Optional[bool] = None, session_id: Optional[str] = None) -> str:
     """Call ``persona.chat`` with a Session.
@@ -71,7 +98,7 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
             [AgentMessage(MessageRole.USER, utterance),
              AgentMessage(MessageRole.ASSISTANT, reply or "")], sid)
         return reply
-    return persona.chat(messages, sess=sess)
+    return persona.chat(_dicts_to_agent_messages(messages), sess=sess)
 
 
 def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] = None,
@@ -100,7 +127,7 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
                  AgentMessage(MessageRole.ASSISTANT, "".join(chunks))], sid)
 
         return _streamer()
-    return persona.stream(messages, sess=sess)
+    return persona.stream(_dicts_to_agent_messages(messages), sess=sess)
 
 
 async def get_default_persona() -> Persona:
