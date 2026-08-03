@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a1) (2026-08-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a2...0.13.4a1)
+
+**Merged pull requests:**
+
+- fix: loader never passes toolbox\_id; plugins own their id [\#60](https://github.com/OpenVoiceOS/ovos-persona-server/pull/60) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.3a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a2) (2026-08-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a1...0.13.3a2)
