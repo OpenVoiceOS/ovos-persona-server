@@ -28,6 +28,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from ovos_plugin_manager.templates.agents import MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +119,8 @@ class TestTGIGenerate:
     def test_inputs_forwarded_to_persona(self):
         resp = self.client.post("/tgi/generate", json=_VALID_BODY)
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == "Tell me a story."
+        assert messages[0].role == MessageRole.USER
+        assert messages[0].content == "Tell me a story."
 
     def test_unknown_params_tolerated(self):
         body = {**_VALID_BODY, "parameters": {"temperature": 0.7, "top_p": 0.9, "seed": 42}}

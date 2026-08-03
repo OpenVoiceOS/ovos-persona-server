@@ -29,6 +29,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from ovos_plugin_manager.templates.agents import MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -177,14 +178,14 @@ class TestCoherePreamble:
         resp = self.client.post("/cohere/v1/chat", json=body)
         assert resp.status_code == 200
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] == "system"
-        assert "pirate" in messages[0]["content"]
+        assert messages[0].role == MessageRole.SYSTEM
+        assert "pirate" in messages[0].content
 
     def test_no_preamble_no_system_message(self):
         resp = self.client.post("/cohere/v1/chat", json=_VALID_CHAT_BODY)
         messages = self.mock_persona.chat.call_args[0][0]
-        roles = [m["role"] for m in messages]
-        assert "system" not in roles
+        roles = [m.role for m in messages]
+        assert MessageRole.SYSTEM not in roles
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +220,7 @@ class TestCohereChatHistory:
         }
         resp = self.client.post("/cohere/v1/chat", json=body)
         messages = self.mock_persona.chat.call_args[0][0]
-        assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+        assistant_msgs = [m for m in messages if m.role == MessageRole.ASSISTANT]
         assert len(assistant_msgs) == 1
 
 
