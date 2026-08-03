@@ -52,7 +52,16 @@ class AddOutput(ToolOutput):
 
 
 class FakeToolBox(ToolBox):
-    """Minimal in-process ToolBox with two deterministic tools."""
+    """Minimal in-process ToolBox with two deterministic tools.
+
+    Follows the plugin contract: ``toolbox_id`` is supplied by the plugin's
+    own ``__init__`` via ``super().__init__(toolbox_id=...)``, and the
+    constructor takes ``config`` then ``bus`` (the loader always calls
+    ``cls(config=cfg, bus=bus)``).
+    """
+
+    def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+        super().__init__(toolbox_id="fake_toolbox", config=config, bus=bus)
 
     def discover_tools(self) -> List[AgentTool]:
         return [
@@ -80,7 +89,7 @@ def _build_fake_registry() -> Dict[str, Any]:
     """Return the module-level fake registry, building it once."""
     global _FAKE_REGISTRY
     if not _FAKE_REGISTRY:
-        tb = FakeToolBox(toolbox_id="fake_toolbox")
+        tb = FakeToolBox()
         _FAKE_REGISTRY = {name: (tb, tool) for name, tool in tb.tools.items()}
     return _FAKE_REGISTRY
 
@@ -374,6 +383,9 @@ class TestToolDiscoveryExtended:
             return BoomOutput()
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
+
             def discover_tools(self):
                 return [AgentTool(
                     name="boom",
@@ -383,7 +395,7 @@ class TestToolDiscoveryExtended:
                     tool_call=_boom,
                 )]
 
-        tb = BoomBox(toolbox_id="boom_box")
+        tb = BoomBox()
         reg = {"boom": (tb, tb.tools["boom"])}
 
         from ovos_persona_server.tools import invoke_tool
@@ -428,6 +440,9 @@ class TestUTCPEdgeCases:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
+
             def discover_tools(self):
                 return [AgentTool(
                     name="crasher",
@@ -437,7 +452,7 @@ class TestUTCPEdgeCases:
                     tool_call=lambda args: (_ for _ in ()).throw(RuntimeError("boom")),
                 )]
 
-        tb = BoomBox(toolbox_id="boom_box")
+        tb = BoomBox()
         reg = {"crasher": (tb, tb.tools["crasher"])}
 
         from fastapi import FastAPI
@@ -502,6 +517,9 @@ class TestMCPServerExtended:
             y: str = Field(default="y")
 
         class BoomBox(ToolBox):
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
+
             def discover_tools(self):
                 return [AgentTool(
                     name="errortool",
@@ -567,6 +585,40 @@ class TestNoneRegistryFallbacks:
         ):
             schemas = list_tool_schemas(registry=None)
         assert len(schemas) >= 1
+
+    def test_bare_toolbox_that_fails_to_construct_is_skipped(self):
+        """
+        The loader always calls ``cls(config=cfg, bus=bus)``. There is no
+        class-level ``toolbox_id`` requirement any more — ``toolbox_id`` is
+        supplied by each plugin's own ``__init__`` via
+        ``super().__init__(toolbox_id=..., config=config, bus=bus)``. A
+        plugin that forgets to do this (and so fails to satisfy the base
+        class's required ``toolbox_id`` constructor argument) still raises
+        at construction time, and the loader logs+skips it while the other,
+        well-behaved plugins still load.
+        """
+        class BareToolBox(ToolBox):
+            """Does not forward toolbox_id to super().__init__ — the base
+            class's required ``toolbox_id`` argument is missing, so
+            construction raises a TypeError."""
+
+            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
+                super().__init__(config=config, bus=bus)  # missing toolbox_id
+
+            def discover_tools(self) -> List[AgentTool]:
+                return []
+
+        with patch(
+            "ovos_persona_server.tools.find_plugins",
+            return_value={"bare_toolbox": BareToolBox, "fake_toolbox": FakeToolBox},
+        ):
+            from ovos_persona_server.tools import get_flat_tool_registry
+            registry = get_flat_tool_registry()
+        # The well-behaved plugin still loads, the broken one is silently
+        # skipped (no exception propagates and no tools of its own appear).
+        assert "echo" in registry
+        assert "add" in registry
+        assert len(registry) == 2
 
     def test_refresh_tools_exception_silenced(self):
         """If refresh_tools raises, it is silently skipped and tools still load."""
