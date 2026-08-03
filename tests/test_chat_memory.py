@@ -53,13 +53,16 @@ class _FakePersona:
 _MSGS = [{"role": "user", "content": "hi there"}]
 
 
-def test_off_mode_passes_client_messages_through():
+def test_off_mode_converts_client_messages():
     mem = _FakeMemory()
     p = _FakePersona(memory=mem)
     out = run_chat(p, _MSGS, memory=False)
     assert out == "hello"
-    # client dicts went straight to the engine; memory untouched
-    assert p.seen_messages == _MSGS
+    # client dicts were converted to AgentMessage before reaching the engine; memory untouched
+    assert len(p.seen_messages) == 1
+    assert isinstance(p.seen_messages[0], AgentMessage)
+    assert p.seen_messages[0].role == MessageRole.USER
+    assert p.seen_messages[0].content == "hi there"
     assert mem.built == [] and mem.persisted == []
 
 
@@ -83,7 +86,10 @@ def test_transparent_mode_without_memory_plugin_falls_back():
     p = _FakePersona(memory=None)
     out = run_chat(p, _MSGS, memory=True)
     assert out == "hello"
-    assert p.seen_messages == _MSGS  # passthrough when no memory plugin configured
+    # falls back to the stateless (converted) path when no memory plugin is configured
+    assert len(p.seen_messages) == 1
+    assert isinstance(p.seen_messages[0], AgentMessage)
+    assert p.seen_messages[0].content == "hi there"
 
 
 def test_transparent_mode_is_multi_turn():
@@ -109,12 +115,45 @@ def test_stream_transparent_accumulates_and_persists():
     assert persisted[1].content == "".join(toks)
 
 
-def test_stream_off_mode_passthrough():
+def test_stream_off_mode_converts_client_messages():
     mem = _FakeMemory()
     p = _FakePersona(memory=mem, reply="a b")
     toks = list(run_stream(p, _MSGS, memory=False))
     assert "".join(toks).strip() == "a b"
-    assert p.seen_messages == _MSGS and mem.persisted == []
+    assert len(p.seen_messages) == 1
+    assert isinstance(p.seen_messages[0], AgentMessage)
+    assert p.seen_messages[0].content == "hi there"
+    assert mem.persisted == []
+
+
+def test_stateless_chat_and_stream_deliver_agent_messages():
+    """Regression for PR #67: the stateless path must hand persona.chat/stream
+    real AgentMessage objects, with legacy role mapping and content-parts
+    flattening applied, not raw request dicts.
+    """
+    msgs = [
+        {"role": "system", "content": "be nice"},
+        {"role": "function", "content": "42", "name": "calc"},
+        {"role": "bogus", "content": "???"},
+        {"role": "user", "content": [{"type": "text", "text": "hi"}, {"type": "text", "text": "there"}]},
+    ]
+
+    chat_persona = _FakePersona()
+    reply = run_chat(chat_persona, msgs, memory=False)
+    assert reply == "hello"
+    seen = chat_persona.seen_messages
+    assert all(isinstance(m, AgentMessage) for m in seen)
+    assert seen[1].role == MessageRole.TOOL  # legacy "function" -> tool
+    assert seen[2].role == MessageRole.USER  # unknown role falls back to user
+    assert seen[-1].content == "hi there"  # content-parts flattened to a string
+
+    stream_persona = _FakePersona(reply="a b")
+    list(run_stream(stream_persona, msgs, memory=False))
+    seen_stream = stream_persona.seen_messages
+    assert all(isinstance(m, AgentMessage) for m in seen_stream)
+    assert seen_stream[1].role == MessageRole.TOOL
+    assert seen_stream[2].role == MessageRole.USER
+    assert seen_stream[-1].content == "hi there"
 
 
 def test_default_toggle_reads_settings(monkeypatch):
