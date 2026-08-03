@@ -9,6 +9,7 @@ from typing import Any, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -256,7 +257,11 @@ async def test_execute_forwards_user_text_to_persona(_patch_a2a) -> None:
 
     # run_stream passes a Session positionally alongside the messages.
     persona.stream.assert_called_once()
-    assert persona.stream.call_args.args[0] == [{"role": "user", "content": "tell me a joke"}]
+    sent = persona.stream.call_args.args[0]
+    assert len(sent) == 1
+    assert isinstance(sent[0], AgentMessage)
+    assert sent[0].role == MessageRole.USER
+    assert sent[0].content == "tell me a joke"
 
 
 # ---------------------------------------------------------------------------
