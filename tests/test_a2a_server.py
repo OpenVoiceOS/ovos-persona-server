@@ -30,6 +30,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from ovos_plugin_manager.templates.agents import MessageRole
+
 
 # ---------------------------------------------------------------------------
 # Helpers to build a minimal a2a-like stub module for tests
@@ -391,8 +393,8 @@ class TestOVOSPersonaAgentExecutor:
         asyncio.run(executor.execute(ctx, eq))
         mock_persona.stream.assert_called_once()
         call_args = mock_persona.stream.call_args[0][0]
-        assert call_args[0]["role"] == "user"
-        assert "Tell me a story." in call_args[0]["content"]
+        assert call_args[0].role == MessageRole.USER
+        assert "Tell me a story." in call_args[0].content
 
     def test_execute_enqueues_artifact_events(self):
         stubs = _make_a2a_stubs()

@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from ovos_plugin_manager.templates.agents import MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +195,7 @@ class TestAnthropicMultiTurn:
         assert resp.status_code == 200
         call_args = self.mock_persona.chat.call_args[0][0]
         assert len(call_args) == 3
-        assert "3+3" in call_args[-1]["content"]
+        assert "3+3" in call_args[-1].content
 
     def test_content_block_list_flattened(self):
         """content as a list of AnthropicContentBlocks must be joined to string."""
@@ -207,7 +208,7 @@ class TestAnthropicMultiTurn:
         resp = self.client.post("/anthropic/v1/messages", json=body)
         assert resp.status_code == 200
         call_args = self.mock_persona.chat.call_args[0][0]
-        assert "Hello" in call_args[0]["content"] and "World" in call_args[0]["content"]
+        assert "Hello" in call_args[0].content and "World" in call_args[0].content
 
 
 # ---------------------------------------------------------------------------
@@ -228,14 +229,14 @@ class TestAnthropicSystemMessage:
         resp = self.client.post("/anthropic/v1/messages", json=body)
         assert resp.status_code == 200
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] == "system"
-        assert "helpful assistant" in messages[0]["content"]
-        assert messages[1]["role"] == "user"
+        assert messages[0].role == MessageRole.SYSTEM
+        assert "helpful assistant" in messages[0].content
+        assert messages[1].role == MessageRole.USER
 
     def test_no_system_field_no_system_message(self):
         resp = self.client.post("/anthropic/v1/messages", json=_VALID_BODY)
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] != "system"
+        assert messages[0].role != MessageRole.SYSTEM
 
 
 # ---------------------------------------------------------------------------

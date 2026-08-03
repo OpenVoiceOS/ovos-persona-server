@@ -27,6 +27,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from ovos_plugin_manager.templates.agents import MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +194,7 @@ class TestGeminiMultiTurn:
         }
         resp = self.client.post(f"/gemini/v1beta/models/{_MODEL_ID}:generateContent", json=body)
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[1]["role"] == "assistant"
+        assert messages[1].role == MessageRole.ASSISTANT
 
 
 # ---------------------------------------------------------------------------
@@ -213,13 +214,13 @@ class TestGeminiSystemInstruction:
         resp = self.client.post(f"/gemini/v1beta/models/{_MODEL_ID}:generateContent", json=body)
         assert resp.status_code == 200
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] == "system"
-        assert "helpful bot" in messages[0]["content"]
+        assert messages[0].role == MessageRole.SYSTEM
+        assert "helpful bot" in messages[0].content
 
     def test_no_system_instruction_no_system_message(self):
         resp = self.client.post(f"/gemini/v1beta/models/{_MODEL_ID}:generateContent", json=_VALID_BODY)
         messages = self.mock_persona.chat.call_args[0][0]
-        assert messages[0]["role"] != "system"
+        assert messages[0].role != MessageRole.SYSTEM
 
 
 # ---------------------------------------------------------------------------

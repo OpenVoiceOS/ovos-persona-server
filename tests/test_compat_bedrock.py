@@ -31,6 +31,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from ovos_plugin_manager.templates.agents import MessageRole
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +362,7 @@ class TestBedrockConverse:
         })
         assert resp.status_code == 200
         msgs = self.mock_persona.chat.call_args[0][0]
-        assert msgs[0]["role"] == "system"
+        assert msgs[0].role == MessageRole.SYSTEM
 
     def test_converse_multi_turn(self):
         resp = self._converse("anthropic.claude-3", {
