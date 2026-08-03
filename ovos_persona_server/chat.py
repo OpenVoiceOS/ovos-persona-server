@@ -23,7 +23,10 @@ from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, Tool
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import (
+    get_default_persona, run_chat, run_stream,
+    _flatten_text, _role, _messages_to_agent,
+)
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
     ChatCompletionResponseMessage, ChatCompletionChoice, ChatCompletionStreamChoice,
@@ -31,53 +34,6 @@ from ovos_persona_server.schemas.openai_chat import (
     CompletionUsage, FinishReason,
     CreateCompletionRequest, CreateCompletionResponse
 )
-
-
-def _flatten_text(content: Any) -> str:
-    """Coerce OpenAI message content (str | content-parts | None) to plain text."""
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
-        return " ".join(p for p in parts if p)
-    return str(content)
-
-
-def _role(raw: Any) -> MessageRole:
-    """Map an OpenAI role string to MessageRole (legacy 'function' -> tool)."""
-    raw = getattr(raw, "value", raw)
-    if raw == "function":
-        raw = "tool"
-    try:
-        return MessageRole(raw)
-    except ValueError:
-        return MessageRole.USER
-
-
-def _messages_to_agent(messages: List[Dict[str, Any]]) -> List[AgentMessage]:
-    """Convert OpenAI message dicts (incl. assistant tool_calls / tool results) to AgentMessages."""
-    out: List[AgentMessage] = []
-    for m in messages:
-        tool_calls = None
-        if m.get("tool_calls"):
-            tool_calls = []
-            for tc in m["tool_calls"]:
-                fn = tc.get("function", {})
-                try:
-                    args = json.loads(fn.get("arguments") or "{}")
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
-                tool_calls.append(ToolCall(id=tc.get("id") or "", name=fn.get("name", ""), arguments=args))
-        out.append(AgentMessage(
-            role=_role(m.get("role", "user")),
-            content=_flatten_text(m.get("content")),
-            tool_calls=tool_calls,
-            tool_call_id=m.get("tool_call_id"),
-            name=m.get("name") or None,
-        ))
-    return out
 
 
 def _tool_capable_engine(persona: Persona):

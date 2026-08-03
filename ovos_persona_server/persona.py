@@ -5,12 +5,13 @@ This module defines the FastAPI router for persona-related endpoints,
 including loading the default persona and providing its status.
 """
 
-from typing import Any, Iterable, List, Optional
+import json
+from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import HTTPException, status
 from ovos_bus_client.session import Session, SessionManager
 from ovos_persona import Persona
-from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole
+from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
 
 from ovos_persona_server.config import settings
 
@@ -28,46 +29,59 @@ def memory_enabled() -> bool:
     return (settings.chat_memory or "off").strip().lower() == "transparent"
 
 
+def _flatten_text(content: Any) -> str:
+    """Coerce OpenAI message content (str | content-parts | None) to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
+        return " ".join(p for p in parts if p)
+    return str(content)
+
+
+def _role(raw: Any) -> MessageRole:
+    """Map an OpenAI role string to MessageRole (legacy 'function' -> tool)."""
+    raw = getattr(raw, "value", raw)
+    if raw == "function":
+        raw = "tool"
+    try:
+        return MessageRole(raw)
+    except ValueError:
+        return MessageRole.USER
+
+
+def _messages_to_agent(messages: List[Dict[str, Any]]) -> List[AgentMessage]:
+    """Convert OpenAI message dicts (incl. assistant tool_calls / tool results) to AgentMessages."""
+    out: List[AgentMessage] = []
+    for m in messages:
+        tool_calls = None
+        if m.get("tool_calls"):
+            tool_calls = []
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+                tool_calls.append(ToolCall(id=tc.get("id") or "", name=fn.get("name", ""), arguments=args))
+        out.append(AgentMessage(
+            role=_role(m.get("role", "user")),
+            content=_flatten_text(m.get("content")),
+            tool_calls=tool_calls,
+            tool_call_id=m.get("tool_call_id"),
+            name=m.get("name") or None,
+        ))
+    return out
+
+
 def _last_user_utterance(messages: List[dict]) -> str:
     """Extract the latest user turn's text from OpenAI-style message dicts."""
     for m in reversed(messages):
         if (m.get("role") or "") == "user":
-            content: Any = m.get("content")
-            if isinstance(content, str):
-                return content
-            if isinstance(content, list):  # content-parts
-                parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
-                return " ".join(p for p in parts if p)
-            if content is not None:
-                return str(content)
+            return _flatten_text(m.get("content"))
     return ""
-
-
-def _dicts_to_agent_messages(messages: List[dict]) -> List[AgentMessage]:
-    """Convert OpenAI-style message dicts to AgentMessage objects.
-
-    Persona.chat/stream's type contract is ``List[AgentMessage]`` (see
-    ovos_persona.Persona.chat, which forwards straight to
-    ``self.solvers.chat_completion(messages, ...)`` with no conversion of
-    its own). The stateless path in run_chat/run_stream below was passing
-    the raw request dicts through unconverted, so any QuestionSolver-based
-    plugin (e.g. ovos-solver-plugin-ddg) crashed on ``messages[-1].content``
-    since plain dicts have no ``.content`` attribute.
-    """
-    out: List[AgentMessage] = []
-    for m in messages:
-        content: Any = m.get("content")
-        if isinstance(content, list):  # content-parts
-            parts = [(p.get("text") or "") if isinstance(p, dict) else str(p) for p in content]
-            content = " ".join(p for p in parts if p)
-        elif content is not None and not isinstance(content, str):
-            content = str(content)
-        try:
-            role = MessageRole(m.get("role") or "user")
-        except ValueError:
-            role = MessageRole.USER
-        out.append(AgentMessage(role, content or ""))
-    return out
 
 
 def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = None,
@@ -98,7 +112,7 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
             [AgentMessage(MessageRole.USER, utterance),
              AgentMessage(MessageRole.ASSISTANT, reply or "")], sid)
         return reply
-    return persona.chat(_dicts_to_agent_messages(messages), sess=sess)
+    return persona.chat(_messages_to_agent(messages), sess=sess)
 
 
 def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] = None,
@@ -127,7 +141,7 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
                  AgentMessage(MessageRole.ASSISTANT, "".join(chunks))], sid)
 
         return _streamer()
-    return persona.stream(_dicts_to_agent_messages(messages), sess=sess)
+    return persona.stream(_messages_to_agent(messages), sess=sess)
 
 
 async def get_default_persona() -> Persona:
