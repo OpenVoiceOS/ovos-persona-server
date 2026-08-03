@@ -6,64 +6,82 @@ and legacy text completions, allowing interaction with the OVOS Persona
 system using OpenAI's API specifications.
 """
 
+import base64
 import json
 import random
 import string
+import struct
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Dict, Any, Union
+from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, status, Depends, FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
+from ovos_bus_client.session import SessionManager
 from ovos_persona import Persona
+from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
+from pydantic import BaseModel, Field
 
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
+from ovos_persona_server.persona import (
+    get_default_persona, run_chat, run_stream,
+    _flatten_text, _role, _messages_to_agent,
+)
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
     ChatCompletionResponseMessage, ChatCompletionChoice, ChatCompletionStreamChoice,
+    ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
     CompletionUsage, FinishReason,
     CreateCompletionRequest, CreateCompletionResponse
 )
 
 
+def _tool_capable_engine(persona: Persona):
+    """Return the persona's first chat handler advertising native tool support, or None."""
+    try:
+        modules = list(persona.solvers.modules)
+    except Exception:  # noqa: BLE001
+        modules = list(getattr(persona.solvers, "loaded_modules", {}).values())
+    return next((m for m in modules if getattr(m, "supports_tools", False)), None)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Manages the lifespan of the FastAPI application, ensuring the default persona is loaded.
-    """
+    """Ensure the default persona is ready before serving requests."""
     await get_default_persona()
     yield
-    # No specific shutdown logic needed for these dependencies currently
 
 
-chat_router = APIRouter(prefix="/v1", tags=["openai"], lifespan=lifespan)
+chat_router = APIRouter(prefix="/openai/v1", tags=["openai"], lifespan=lifespan)
 
 
 @chat_router.post(
     "/chat/completions",
-    response_model=Union[CreateChatCompletionResponse, CreateChatCompletionStreamResponse],
+    response_model=None,
     status_code=status.HTTP_200_OK
 )
 async def chat_completions(
         request_body: CreateChatCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles OpenAI-compatible chat completions, supporting both non-streaming and streaming.
+    """Handle OpenAI-compatible chat completions (streaming and non-streaming).
 
-    NOTE: only 'messages' and 'stream' are currently handled, every other parameter is ignored
+    When ``tools`` is supplied it is honored if the persona has a tool-capable chat
+    engine (``supports_tools``): the request is routed to it and any ``tool_calls`` are
+    returned (``finish_reason="tool_calls"``) for the client to execute — the server is
+    a stateless function-calling passthrough, it does not run the tools itself. If no
+    tool-capable engine is configured, a 501 is returned rather than silently ignoring
+    ``tools``. Remaining OpenAI parameters are accepted and not acted upon.
 
     Args:
-        request_body (CreateChatCompletionRequest): The request body containing messages and
-                                              other chat completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Chat completion request containing messages and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the persona chat fails.
+        HTTPException: If the persona chat call raises an unexpected exception.
     """
     stream: bool = request_body.stream
     # Convert Pydantic message models to dicts for persona.chat/stream
@@ -71,10 +89,65 @@ async def chat_completions(
 
     completion_id: str = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
     completion_timestamp: int = int(time.time())
+
+    # Function-calling: honor `tools` via a tool-capable engine, or fail loudly.
+    if request_body.tools:
+        if stream:
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                                detail="Tool calling is not supported with stream=true; use stream=false.")
+        engine = _tool_capable_engine(persona)
+        if engine is None:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="The configured persona has no tool-capable chat engine; "
+                       "the 'tools' parameter cannot be honored.")
+        tool_specs = [t.model_dump(exclude_unset=True) for t in request_body.tools]
+        sess = SessionManager().get()
+        try:
+            resp = engine.continue_chat(_messages_to_agent(messages),
+                                        session_id=sess.session_id, lang=sess.lang,
+                                        units=sess.system_unit, tools=tool_specs)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Persona chat failed: {e}") from e
+
+        rc_tool_calls: List[ChatCompletionMessageToolCall] = []
+        finish_reason = FinishReason.STOP
+        if getattr(resp, "tool_calls", None):
+            rc_tool_calls = [
+                ChatCompletionMessageToolCall(
+                    id=tc.id, type="function",
+                    function=ChatCompletionMessageToolCallFunction(
+                        name=tc.name, arguments=json.dumps(tc.arguments)))
+                for tc in resp.tool_calls
+            ]
+            finish_reason = FinishReason.TOOL_CALLS
+
+        prompt_tokens = sum(len((msg.get("content") or "").split()) for msg in messages) if messages else 0
+        completion_tokens = len((resp.content or "").split())
+        return JSONResponse(content=CreateChatCompletionResponse(
+            id=f"chatcmpl-{completion_id}",
+            object="chat.completion",
+            created=completion_timestamp,
+            model=persona.name,
+            choices=[ChatCompletionChoice(
+                index=0,
+                message=ChatCompletionResponseMessage(
+                    role="assistant", content=resp.content or "", tool_calls=rc_tool_calls),
+                finish_reason=finish_reason,
+            )],
+            usage=CompletionUsage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+                                  total_tokens=prompt_tokens + completion_tokens),
+            tools=request_body.tools,
+            tool_choice=request_body.tool_choice,
+            parallel_tool_calls=request_body.parallel_tool_calls,
+        ).model_dump(exclude_unset=True))
+
     if not stream:
         try:
-            # Call persona's chat method
-            content: str = persona.chat(messages)
+            # Call persona's chat method. In transparent-memory mode the optional
+            # OpenAI `user` field namespaces server-side history per caller.
+            content: str = run_chat(persona, messages, session_id=request_body.user)
 
             # Basic token count estimation
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
@@ -122,9 +195,7 @@ async def chat_completions(
                                 detail=f"Persona chat failed: {e}") from e
 
     async def streaming_chat_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams chat completion chunks.
-        """
+        """Yield SSE data events in OpenAI streaming format."""
         # Initial chunk with role
         initial_chunk = CreateChatCompletionStreamResponse(
             id=f"chatcmpl-{completion_id}",
@@ -141,7 +212,7 @@ async def chat_completions(
 
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages, session_id=request_body.user):
                 if chunk:  # Only send if chunk is not empty
                     current_completion_tokens += len(chunk.split())  # Basic token count
                     stream_chunk = CreateChatCompletionStreamResponse(
@@ -193,27 +264,26 @@ async def chat_completions(
     return StreamingResponse(streaming_chat_response(), media_type="text/event-stream")
 
 
-@chat_router.post("/completions", response_model=CreateCompletionResponse, status_code=status.HTTP_200_OK)
+@chat_router.post("/completions", response_model=None, status_code=status.HTTP_200_OK)
 async def create_completion(
         request_body: CreateCompletionRequest,
         persona: Persona = Depends(get_default_persona)
 ) -> Union[JSONResponse, StreamingResponse]:
-    """
-    Handles legacy OpenAI completions API requests.
+    """Handle legacy OpenAI text-completion API requests.
 
-    NOTE: only 'prompt' and 'stream' are currently handled, every other parameter is ignored
+    Only ``prompt`` and ``stream`` are forwarded to the persona; other
+    parameters are accepted and silently ignored.  Token-array prompts are
+    not supported and return 500.
 
     Args:
-        request_body (CreateCompletionRequest): The request body containing the prompt
-                                                and other completion parameters.
-        persona (Persona): The persona instance, injected by FastAPI's dependency.
+        request_body: Completion request with prompt and options.
+        persona: Injected persona instance.
 
     Returns:
-        Union[JSONResponse, StreamingResponse]: A JSON response for non-streaming
-                                                or a StreamingResponse for streaming requests.
+        JSON response (non-streaming) or SSE StreamingResponse.
 
     Raises:
-        HTTPException: If the prompt format is invalid or persona completion fails.
+        HTTPException: On unsupported prompt format or persona failure.
     """
     stream: bool = request_body.stream
     prompt: Union[str, List[str], List[int], List[List[int]]] = request_body.prompt
@@ -240,7 +310,7 @@ async def create_completion(
 
     if not stream:
         try:
-            content: str = persona.chat(messages)
+            content: str = run_chat(persona, messages)
 
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
             completion_tokens: int = len(content.split())
@@ -273,16 +343,14 @@ async def create_completion(
                                 detail=f"Persona completion failed: {e}") from e
 
     async def streaming_completion_response() -> AsyncGenerator[str, None]:
-        """
-        Asynchronously streams legacy completion chunks.
-        """
+        """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
-            for chunk in persona.stream(messages):
+            for chunk in run_stream(persona, messages):
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format
-                    yield f"data: {json.dumps({
+                    payload = {
                         'id': f"cmpl-{completion_id}",
                         'object': "text_completion",
                         'created': completion_timestamp,
@@ -290,27 +358,105 @@ async def create_completion(
                         'choices': [{
                             'text': chunk,
                             'index': 0,
-                            'logprobs': None,  # Not supported in this basic implementation
+                            'logprobs': None,
                             'finish_reason': None
                         }]
-                    })}\n\n"
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason
-        yield f"data: {json.dumps({
+        final_payload = {
             'id': f"cmpl-{completion_id}",
             'object': "text_completion",
             'created': completion_timestamp,
             'model': request_body.model,
             'choices': [{
-                'text': "",  # Empty text for the final chunk
+                'text': "",
                 'index': 0,
                 'logprobs': None,
                 'finish_reason': FinishReason.STOP.value
             }]
-        })}\n\n"
+        }
+        yield f"data: {json.dumps(final_payload)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(streaming_completion_response(), media_type="text/event-stream")
+
+
+@chat_router.get("/models")
+async def list_models(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+    """List available models (OpenAI-compatible).
+
+    Args:
+        persona: Injected persona instance.
+
+    Returns:
+        OpenAI-format models list containing the loaded persona.
+    """
+    return JSONResponse({
+        "object": "list",
+        "data": [
+            {
+                "id": persona.name,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "ovos",
+            }
+        ],
+    })
+
+
+class OpenAIEmbeddingsRequest(BaseModel):
+    """Request body for POST /v1/embeddings."""
+
+    model: str = Field(default="text-embedding-ada-002", min_length=1)
+    input: Union[str, List[str]] = Field(..., description="Text or list of texts to embed")
+    encoding_format: Literal["float", "base64"] = "float"
+    dimensions: Optional[int] = Field(default=None, gt=0)
+    user: Optional[str] = None
+
+
+@chat_router.post("/embeddings")
+async def embeddings(
+        request_body: OpenAIEmbeddingsRequest,
+        embedder=Depends(get_embeddings_backend),
+) -> JSONResponse:
+    """Generate embeddings (OpenAI-compatible).
+
+    Delegates to the shared, swappable embeddings backend
+    (:func:`get_embeddings_backend`) — the same service used by the Ollama
+    endpoint and vector-store search. Configure it via ``TEXT_EMBEDDINGS_PLUGIN``
+    / ``EMBEDDINGS_URL`` / ``EMBEDDINGS_MODEL`` to point at any embeddings provider.
+
+    Args:
+        request_body: OpenAI embeddings request with model and input.
+        embedder: Injected shared embeddings backend.
+
+    Returns:
+        OpenAI-format embeddings response.
+
+    Raises:
+        HTTPException: 501 if no embeddings backend is available; 500 on backend failure.
+    """
+    texts = request_body.input if isinstance(request_body.input, list) else [request_body.input]
+    vectors = embed_texts(embedder, texts)
+    # The official openai SDK requests encoding_format="base64" by default and
+    # decodes float32 buffers client-side; honour it for SDK compatibility.
+    if request_body.encoding_format == "base64":
+        encoded = [base64.b64encode(struct.pack(f"<{len(vec)}f", *vec)).decode("ascii")
+                   for vec in vectors]
+        data = [{"object": "embedding", "embedding": e, "index": i} for i, e in enumerate(encoded)]
+    else:
+        data = [{"object": "embedding", "embedding": vec, "index": i}
+                for i, vec in enumerate(vectors)]
+    prompt_tokens = sum(len(t.split()) for t in texts)
+
+    return JSONResponse({
+        "object": "list",
+        "data": data,
+        "model": backend_model_name(embedder, request_body.model),
+        "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
+    })
