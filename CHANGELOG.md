@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.3a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a2) (2026-08-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a1...0.13.3a2)
+
+**Merged pull requests:**
+
+- refactor: unify OpenAI-dict → AgentMessage conversion, fix stale passthrough tests [\#68](https://github.com/OpenVoiceOS/ovos-persona-server/pull/68) ([JarbasAl](https://github.com/JarbasAl))
+- fix: convert message dicts to AgentMessage in run\_chat/run\_stream [\#67](https://github.com/OpenVoiceOS/ovos-persona-server/pull/67) ([andlo](https://github.com/andlo))
+
 ## [0.13.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a1) (2026-07-26)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.2a1...0.13.3a1)
