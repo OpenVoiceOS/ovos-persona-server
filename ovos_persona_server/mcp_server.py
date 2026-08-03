@@ -13,8 +13,8 @@
 MCP server that exposes installed OPM tool plugins as MCP tools.
 
 Each ``ToolBox`` plugin's tools are discovered at startup and registered with
-the ``mcp`` Python SDK.  The server is mounted on the FastAPI app at
-``/mcp`` (SSE transport) so it shares the existing Uvicorn process.
+the ``fastmcp`` package.  The server is mounted on the FastAPI app at
+``/mcp`` (streamable-HTTP transport) so it shares the existing Uvicorn process.
 
 Usage (standalone, for an MCP client that supports the stdio transport)::
 
@@ -33,7 +33,8 @@ MCP clients connecting via SSE point at::
 import json
 from typing import Any, Dict
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.tools.function_tool import FunctionTool
 from ovos_utils.log import LOG
 
 from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool, list_tool_schemas
@@ -41,8 +42,8 @@ from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool, list_
 
 def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
     """
-    Construct and return a :class:`~mcp.server.fastmcp.FastMCP` instance with
-    all installed OPM tool plugins registered as MCP tools.
+    Construct and return a :class:`~fastmcp.FastMCP` instance with all
+    installed OPM tool plugins registered as MCP tools.
 
     The registry is built once at call-time; the server is stateless
     afterwards (tools are effectively frozen until the process restarts).
@@ -67,8 +68,11 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
         arg_schema: Dict[str, Any] = tool_def["argument_schema"]
 
         # Build a dynamic wrapper that closes over the tool name and registry.
-        # The MCP SDK expects the function signature to carry kwarg annotations
-        # so that it can generate its own JSON Schema; we supply a pre-built one.
+        # fastmcp's ``@mcp.tool`` decorator introspects the handler's
+        # signature to build its JSON Schema and rejects ``**kwargs``
+        # handlers outright, so we construct a ``FunctionTool`` directly and
+        # hand it the pre-built JSON Schema instead of letting fastmcp infer
+        # one from the (dynamic, kwargs-only) handler signature.
         def _make_handler(tname: str):
             def handler(**kwargs: Any) -> str:
                 """Invoke the OPM tool plugin and return JSON-serialised output."""
@@ -84,12 +88,14 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
 
         handler_fn = _make_handler(tool_name)
 
-        # Register with the MCP SDK.  We pass the JSON Schema directly so the
-        # SDK does not try to introspect the dynamic handler's signature.
-        mcp.tool(
-            name=tool_name,
-            description=tool_description,
-        )(handler_fn)
+        mcp.add_tool(
+            FunctionTool(
+                name=tool_name,
+                description=tool_description,
+                parameters=arg_schema,
+                fn=handler_fn,
+            )
+        )
 
         LOG.debug("MCP: registered tool %s", tool_name)
 
@@ -101,13 +107,13 @@ def mount_mcp_on_app(app, path="/mcp", name="ovos-persona-tools"):
     """Mount MCP streamable-HTTP transport at path with lifespan chaining."""
     from contextlib import asynccontextmanager
     mcp = build_mcp_server(name=name)
-    mcp.settings.streamable_http_path = "/"
-    app.mount(path, mcp.streamable_http_app())
+    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+    app.mount(path, mcp_app)
     _orig = app.router.lifespan_context
     @asynccontextmanager
     async def _wrap(h):
         async with _orig(h):
-            async with mcp.session_manager.run():
+            async with mcp_app.lifespan(mcp_app):
                 yield
     app.router.lifespan_context = _wrap
     LOG.info("MCP server mounted at %s (streamable-HTTP)", path)
