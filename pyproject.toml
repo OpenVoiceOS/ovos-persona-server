@@ -30,6 +30,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0",  # [asyncio] pulls greenlet, required by AsyncSession
     "python-dotenv",
     "python-multipart",
+    "requests",  # OpenAI-backed tools passthrough proxies directly to the solver endpoint
 ]
 
 [project.optional-dependencies]

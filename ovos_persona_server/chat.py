@@ -23,6 +23,9 @@ from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, Tool
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
+from ovos_persona_server.openai_tools_proxy import (
+    get_openai_chat_solver, handle_tools_passthrough,
+)
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream,
     _flatten_text, _role, _messages_to_agent,
@@ -90,8 +93,19 @@ async def chat_completions(
     completion_id: str = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
     completion_timestamp: int = int(time.time())
 
-    # Function-calling: honor `tools` via a tool-capable engine, or fail loudly.
+    # Function-calling: honor `tools`.
     if request_body.tools:
+        # Preferred path: when the persona's primary solver is an OpenAI-compatible
+        # chat endpoint, proxy the request (with tools/tool_choice/parallel_tool_calls
+        # and the persona's system prompt) straight to that upstream endpoint and relay
+        # its reply verbatim — tool_calls, finish_reason and streamed deltas included.
+        # This is the only path that can honor tools for OpenAI-backed personas, and
+        # unlike the engine path below it also supports streaming. The relayed body
+        # keeps the upstream shape, so `model` reflects the upstream model here.
+        oai_solver = get_openai_chat_solver(persona)
+        if oai_solver is not None:
+            return await handle_tools_passthrough(oai_solver, request_body, messages, stream)
+        # Fallback: a non-OpenAI but tool-capable engine (supports_tools + continue_chat).
         if stream:
             raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
                                 detail="Tool calling is not supported with stream=true; use stream=false.")
