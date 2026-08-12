@@ -77,14 +77,33 @@ def test_tools_without_capable_engine_returns_501():
     assert r.status_code == 501
 
 
-def test_streaming_with_tools_returns_501():
-    eng = _ToolEngine(AgentMessage(role=MessageRole.ASSISTANT, content="hi"))
+def test_streaming_with_client_tool_call_streams_tool_calls_delta():
+    eng = _ToolEngine(AgentMessage(role=MessageRole.ASSISTANT, content="",
+                                   tool_calls=[ToolCall(id="c1", name="calc", arguments={"a": 1})]))
     app, _ = _make_app(eng)
-    r = TestClient(app, raise_server_exceptions=False).post(
-        "/openai/v1/chat/completions",
-        json={"model": "x", "messages": [{"role": "user", "content": "hi"}],
-              "tools": _TOOLS, "stream": True})
-    assert r.status_code == 501
+    with TestClient(app).stream(
+            "POST", "/openai/v1/chat/completions",
+            json={"model": "x", "messages": [{"role": "user", "content": "2?"}],
+                  "tools": _TOOLS, "stream": True}) as resp:
+        assert resp.status_code == 200
+        raw = "".join(resp.iter_text())
+    assert '"name":"calc"' in raw or '"name": "calc"' in raw
+    assert "tool_calls" in raw
+    assert "[DONE]" in raw
+
+
+def test_streaming_with_tools_plain_answer_streams_content():
+    eng = _ToolEngine(AgentMessage(role=MessageRole.ASSISTANT, content="42"))
+    app, _ = _make_app(eng)
+    with TestClient(app).stream(
+            "POST", "/openai/v1/chat/completions",
+            json={"model": "x", "messages": [{"role": "user", "content": "6*7?"}],
+                  "tools": _TOOLS, "stream": True}) as resp:
+        assert resp.status_code == 200
+        raw = "".join(resp.iter_text())
+    assert "42" in raw
+    assert '"finish_reason":"stop"' in raw or '"finish_reason": "stop"' in raw
+    assert "[DONE]" in raw
 
 
 def test_incoming_tool_messages_converted_for_engine():
