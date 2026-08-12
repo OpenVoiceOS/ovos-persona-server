@@ -41,6 +41,16 @@ class Settings:
                            CHAT_MEMORY environment variable. Leave ``"off"`` for multi-user /
                            drop-in-OpenAI-replacement deployments (shared server memory would
                            leak across users).
+        system_prompt_strategy (str): How a client-supplied ``system`` message in an
+                           incoming request is handled. ``"ignore"`` (default) drops it and
+                           uses only the persona's own ``system_prompt`` (preserves existing
+                           behaviour). ``"replace"`` uses the client's system message(s)
+                           instead, falling back to the persona's when the client sends none.
+                           ``"append"`` keeps the persona's ``system_prompt`` as the base and
+                           appends the client's system message(s) after it, joined by a blank
+                           line. Loaded from the PERSONA_SYSTEM_PROMPT_STRATEGY environment
+                           variable, or per-persona via the ``system_prompt_strategy`` key in
+                           the persona JSON.
         file_storage_path (str): The directory path where uploaded files will be stored.
                                  Defaults to "~/.cache/ovos-persona-server/files".
         file_storage_strategy (str): Defines how files are stored.
@@ -112,6 +122,8 @@ class Settings:
     """
     persona: str = field(default_factory=lambda: os.environ.get('PERSONA_PATH', ""))
     chat_memory: str = field(default_factory=lambda: os.environ.get('CHAT_MEMORY', 'off'))
+    system_prompt_strategy: str = field(
+        default_factory=lambda: os.environ.get('PERSONA_SYSTEM_PROMPT_STRATEGY', 'ignore'))
     file_storage_path: str = field(default_factory=lambda: os.environ.get('FILE_STORAGE_PATH', os.path.expanduser(
         "~/.cache/ovos-persona-server/files")))
     file_storage_strategy: str = field(default_factory=lambda: os.environ.get('FILE_STORAGE_STRATEGY', 'disk'))
@@ -162,6 +174,7 @@ class Settings:
                 return json.load(f)
         return {
             "name": self.llm_name,
+            "system_prompt_strategy": self.system_prompt_strategy,
             "solvers": [
                 self.llm_solver
             ],

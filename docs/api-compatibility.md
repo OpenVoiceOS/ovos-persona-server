@@ -25,6 +25,20 @@ All seven API surfaces share a single backing `Persona` instance loaded at start
 ```
 Valid roles: `system`, `user`, `assistant`, `tool`, `function`. Invalid roles return 422.
 
+**Client system prompt** (`system_prompt_strategy`): a client-supplied `system` message is
+handled per the persona's `system_prompt_strategy`, set with the
+`PERSONA_SYSTEM_PROMPT_STRATEGY` environment variable or the `system_prompt_strategy` key in
+the persona JSON:
+
+| Strategy | Effect |
+| :--- | :--- |
+| `ignore` (default) | Drop the client's system message; use only the persona's own `system_prompt`. Preserves existing behaviour. |
+| `replace` | Use the client's system message(s) instead of the persona's; fall back to the persona's when the client sends none. |
+| `append` | Persona's `system_prompt` first, then the client's system message(s) appended after it, joined by a blank line. |
+
+Multiple client system messages are concatenated in order. The strategy is applied once to the
+incoming request, so it holds for every path.
+
 **Response schema**:
 ```json
 {

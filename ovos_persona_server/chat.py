@@ -23,6 +23,7 @@ from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, Tool
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
+from ovos_persona_server.system_prompt import apply_system_prompt_strategy
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream,
     _flatten_text, _role, _messages_to_agent,
@@ -86,6 +87,12 @@ async def chat_completions(
     stream: bool = request_body.stream
     # Convert Pydantic message models to dicts for persona.chat/stream
     messages: List[Dict[str, Any]] = [msg.model_dump(exclude_unset=True) for msg in request_body.messages]
+
+    # Resolve the leading system prompt per the persona's system_prompt_strategy
+    # (ignore | replace | append). Applied once here so every downstream path —
+    # the text Persona.chat path and any OpenAI tools passthrough — sees the same
+    # resolved messages. Default `ignore` keeps existing behaviour.
+    messages = apply_system_prompt_strategy(persona, messages)
 
     completion_id: str = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
     completion_timestamp: int = int(time.time())
