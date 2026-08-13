@@ -2,13 +2,14 @@
 
 ## What is this?
 
-`ovos-persona-server` exposes a single OVOS `Persona` as a multi-protocol HTTP API. Eight API surfaces let any LLM client or A2A agent interact with your persona without modification.
+`ovos-persona-server` exposes one or more OVOS `Persona`s as a multi-protocol HTTP API. Eight API surfaces let any LLM client or A2A agent interact with your personas without modification. When several personas are loaded, clients pick one with the `model` field — see [multi-persona.md](multi-persona.md).
 
 ## Docs
 
 | File | Contents |
 |------|----------|
 | [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
+| [multi-persona.md](multi-persona.md) | Serving several personas from one process; model → persona routing |
 | [streaming.md](streaming.md) | SSE streaming format per API |
 | [rag.md](rag.md) | Files, Vector Stores, and the RAG flow (upload → embed → search → chat) |
 | [embeddings.md](embeddings.md) | Shared embeddings backend across every vendor surface |
@@ -52,8 +53,10 @@ HTTP request
 
 | Symbol | File | Role |
 |--------|------|------|
-| `create_persona_app` | `__init__.py:20` | Factory: loads persona, wires all routers |
-| `get_default_persona` | `persona.py:17` | FastAPI dependency; returns loaded `Persona` |
+| `create_persona_app` | `__init__.py` | Factory: loads the personas, wires all routers |
+| `get_default_persona` | `persona.py` | FastAPI dependency; returns the default `Persona` |
+| `resolve_persona` | `persona.py` | Maps a request's `model` to a loaded persona |
+| `register_personas` | `persona.py` | Fills the process-wide persona registry, picks the default |
 | `OVOSPersonaAgentExecutor` | `a2a.py:106` | A2A `AgentExecutor` wrapping `Persona.stream()` |
 | `_agent_card` | `a2a.py:66` | Builds A2A `AgentCard` from persona metadata |
 | `create_a2a_application` | `a2a.py:212` | Returns `A2AStarletteApplication` for mounting |

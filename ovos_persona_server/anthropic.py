@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
 from ovos_persona_server.schemas.anthropic import (
     AnthropicContentBlock,
     AnthropicRequest,
@@ -60,6 +60,7 @@ async def create_message(
     Returns:
         JSON response or SSE stream in Anthropic format.
     """
+    persona = resolve_persona(request.model, persona)
     messages = _normalise_messages(request)
     msg_id = "msg_" + "".join(random.choices(string.ascii_letters + string.digits, k=24))
 

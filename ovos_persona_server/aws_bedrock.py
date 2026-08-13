@@ -15,7 +15,7 @@ from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
 
 bedrock_router = APIRouter(prefix="/bedrock/model", tags=["aws-bedrock"])
 
@@ -266,6 +266,7 @@ async def invoke(
     Returns:
         Model-specific JSON response.
     """
+    persona = resolve_persona(model_id, persona, strict=False)
     body = await request.json()
     if _is_embedding_model(model_id):
         embedder = await get_embeddings_backend()
@@ -295,6 +296,7 @@ async def invoke_stream(
     Returns:
         SSE stream of JSON chunks.
     """
+    persona = resolve_persona(model_id, persona, strict=False)
     body = await request.json()
     messages = _extract_messages(body, model_id)
 
@@ -359,6 +361,7 @@ async def converse(
     Returns:
         Bedrock Converse response format.
     """
+    persona = resolve_persona(model_id, persona, strict=False)
     messages: List[Dict[str, str]] = []
     if request.system:
         sys_text = " ".join(b.text for b in request.system)

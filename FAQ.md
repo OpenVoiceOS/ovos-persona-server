@@ -59,7 +59,7 @@ uv run pytest test/ -v --cov=ovos_persona_server --cov-report=term-missing
 `POST /openai/v1/chat/completions`, `POST /openai/v1/completions`, `GET /openai/v1/models`, `POST /openai/v1/embeddings`.
 
 **Is the `model` field used?**
-Accepted but ignored. The persona name loaded at startup is used as the model identifier in all responses.
+It names the persona to talk to — a persona's `name` is its model id. With a single persona loaded the field stays advisory and is ignored, as before. With several personas an unknown name returns HTTP 404, and omitting the field selects the default persona. See [docs/multi-persona.md](docs/multi-persona.md).
 
 **What roles are valid in messages?**
 `system`, `user`, `assistant`, `tool`, `function`. Invalid roles return HTTP 422.
