@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
 from ovos_persona_server.schemas.gemini import (
     GeminiBatchEmbedContentsRequest,
     GeminiBatchEmbedContentsResponse,
@@ -89,6 +89,7 @@ async def generate_content(
     Raises:
         HTTPException: 500 if persona chat fails.
     """
+    persona = resolve_persona(model_id, persona)
     messages = _normalise_messages(request)
     try:
         text = run_chat(persona, messages)
@@ -116,6 +117,7 @@ async def stream_generate_content(
     Returns:
         SSE stream of GeminiResponse JSON objects.
     """
+    persona = resolve_persona(model_id, persona)
     messages = _normalise_messages(request)
 
     async def _stream() -> AsyncGenerator[str, None]:

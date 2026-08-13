@@ -70,8 +70,9 @@ def _make_stub_app() -> FastAPI:
         from ovos_persona_server.utcp import utcp_router
         app.include_router(utcp_router)
 
-    # Mount MCP if available using the fixed mount_mcp_on_app helper which
-    # sets streamable_http_path="/" and chains the session manager lifespan.
+    # Mount MCP if available using the mount_mcp_on_app helper, which builds
+    # the fastmcp streamable-HTTP ASGI app and chains its lifespan into the
+    # host FastAPI app's lifespan.
     try:
         from ovos_persona_server.mcp_server import mount_mcp_on_app
         with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
@@ -141,7 +142,7 @@ def mcp_server():
         mcp = build_mcp_server()
     # Standalone: serve MCP at root "/" so the streamable transport default
     # /mcp path inside FastMCP maps to exactly /mcp on the outer app.
-    mcp_app = mcp.streamable_http_app()
+    mcp_app = mcp.http_app(path="/mcp", transport="streamable-http")
     try:
         base_url, server, thread = _start_server(mcp_app, health_path="/mcp")
     except RuntimeError as exc:
@@ -199,10 +200,10 @@ class TestUtcpE2E:
 # MCP end-to-end
 # ---------------------------------------------------------------------------
 
-_mcp_available = importlib.util.find_spec("mcp") is not None
+_mcp_available = importlib.util.find_spec("fastmcp") is not None
 mcp_required = pytest.mark.skipif(
     not _mcp_available,
-    reason="mcp package not installed",
+    reason="fastmcp package not installed",
 )
 
 

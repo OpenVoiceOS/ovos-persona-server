@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a1...0.13.4a2)
+
+**Merged pull requests:**
+
+- refactor: migrate MCP server to the fastmcp package [\#71](https://github.com/OpenVoiceOS/ovos-persona-server/pull/71) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a1) (2026-08-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a2...0.13.4a1)

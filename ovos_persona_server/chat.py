@@ -27,7 +27,7 @@ from ovos_persona_server.server_tools import (
     build_server_tool_specs, cached_registry, run_tool_loop,
 )
 from ovos_persona_server.persona import (
-    get_default_persona, run_chat, run_stream,
+    get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
     _flatten_text, _role, _messages_to_agent,
 )
 from ovos_persona_server.schemas.openai_chat import (
@@ -131,6 +131,7 @@ async def chat_completions(
     Raises:
         HTTPException: If the persona chat call raises an unexpected exception.
     """
+    persona = resolve_persona(request_body.model, persona)
     stream: bool = request_body.stream
     # Convert Pydantic message models to dicts for persona.chat/stream
     messages: List[Dict[str, Any]] = [msg.model_dump(exclude_unset=True) for msg in request_body.messages]
@@ -353,6 +354,7 @@ async def create_completion(
     Raises:
         HTTPException: On unsupported prompt format or persona failure.
     """
+    persona = resolve_persona(request_body.model, persona)
     stream: bool = request_body.stream
     prompt: Union[str, List[str], List[int], List[List[int]]] = request_body.prompt
 
@@ -462,17 +464,19 @@ async def list_models(persona: Persona = Depends(get_default_persona)) -> JSONRe
         persona: Injected persona instance.
 
     Returns:
-        OpenAI-format models list containing the loaded persona.
+        OpenAI-format models list, one entry per loaded persona.
     """
+    created = int(time.time())
     return JSONResponse({
         "object": "list",
         "data": [
             {
-                "id": persona.name,
+                "id": p.name,
                 "object": "model",
-                "created": int(time.time()),
+                "created": created,
                 "owned_by": "ovos",
             }
+            for p in available_personas(persona)
         ],
     })
 
