@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.16.0a1...0.17.0a1)
+
+**Merged pull requests:**
+
+- feat: make MCP mounting an explicit --mcp opt-in flag [\#83](https://github.com/OpenVoiceOS/ovos-persona-server/pull/83) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.16.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.16.0a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.1a1...0.16.0a1)
