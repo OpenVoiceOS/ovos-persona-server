@@ -39,6 +39,13 @@ the persona JSON:
 Multiple client system messages are concatenated in order. The strategy is applied once to the
 incoming request, so it holds for every path.
 
+The strategy runs **before** the chat engine sees the messages, so it wins over any
+engine-level setting. `ovos-chat-openai-plugin` has its own `allow_system_prompts`
+(default `false`, which already strips client system messages) — a persona that set it
+to `true` to merge the client's prompt keeps receiving nothing under the default
+`ignore`. Such a persona wants `append`, which reproduces that merge at the server
+level: persona prompt first, client's after it.
+
 **Response schema**:
 ```json
 {
