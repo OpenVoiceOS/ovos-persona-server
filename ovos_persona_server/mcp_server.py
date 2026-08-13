@@ -20,10 +20,10 @@ Usage (standalone, for an MCP client that supports the stdio transport)::
 
     ovos-persona-tools-mcp
 
-Usage (as part of the persona server, automatic when ``[mcp]`` extras are
-installed)::
+Usage (as part of the persona server, opt-in via ``--mcp`` even when the
+``[mcp]`` extra is installed)::
 
-    ovos-persona-server --persona mybot.json
+    ovos-persona-server --persona mybot.json --mcp
 
 MCP clients connecting via SSE point at::
 
