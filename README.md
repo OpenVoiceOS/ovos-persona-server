@@ -1,6 +1,6 @@
 # ovos-persona-server
 
-A single HTTP server that exposes one OVOS `Persona` as **eight concurrent API surfaces** — so any LLM client (OpenAI SDK, LangChain, Ollama tools, Anthropic SDK, Google Gemini SDK, Cohere SDK, HuggingFace TGI client, AWS Bedrock client, or any A2A agent) can talk to your OVOS persona without changes.
+A single HTTP server that exposes one or more OVOS `Persona`s as **eight concurrent API surfaces** — so any LLM client (OpenAI SDK, LangChain, Ollama tools, Anthropic SDK, Google Gemini SDK, Cohere SDK, HuggingFace TGI client, AWS Bedrock client, or any A2A agent) can talk to your OVOS persona without changes.
 
 ---
 
@@ -9,6 +9,7 @@ A single HTTP server that exposes one OVOS `Persona` as **eight concurrent API s
 - [What is a Persona?](#what-is-a-persona)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Serving Several Personas](#serving-several-personas)
 - [API Surfaces](#api-surfaces)
 - [A2A Endpoint](#a2a-endpoint)
 - [Persona Config Examples](#persona-config-examples)
@@ -22,12 +23,14 @@ A single HTTP server that exposes one OVOS `Persona` as **eight concurrent API s
 
 ## What is a Persona?
 
-An OVOS Persona is a JSON file that chains together one or more **solver plugins**. Solvers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
+An OVOS Persona is a JSON file that chains together one or more **handler plugins** (also called solvers, the legacy key name). Handlers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
+
+See the [OVOS technical manual: Personas](https://tigregotico.github.io/ovos-technical-manual/personas/) for the full persona file schema.
 
 ```json
 {
   "name": "OldSchoolBot",
-  "solvers": [
+  "handlers": [
     "ovos-solver-wikipedia-plugin",
     "ovos-solver-ddg-plugin",
     "ovos-solver-plugin-wolfram-alpha",
@@ -74,6 +77,33 @@ ovos-persona-server \
 ```
 
 The server binds to `0.0.0.0:8337` by default. Visit `http://localhost:8337/docs` for the interactive API reference (Swagger UI).
+
+---
+
+## Serving Several Personas
+
+One process can host several personas. A persona's `name` is its model id: clients select one with the `model` field of whichever API they speak.
+
+```bash
+ovos-persona-server \
+  --persona /path/to/assistant.json \
+  --persona /path/to/rivescript-bot.json
+
+# or load a whole directory
+ovos-persona-server --personas-dir /etc/ovos/personas --default-persona assistant
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--persona` | Path to a persona `.json`. Repeat it to load more than one. |
+| `--personas-dir` | Load every `*.json` in the directory, sorted by file name. |
+| `--default-persona` | Persona used when a request names no model. Defaults to the first persona loaded. |
+
+`GET /openai/v1/models` (and `GET /ollama/api/tags`) list every loaded persona. An unknown `model` returns HTTP 404 listing the available names. With a single persona the `model` field stays advisory, so existing deployments are unaffected.
+
+`model` selects a **persona** — a solver chain, a system prompt, and memory settings — not the LLM behind it. To change the LLM, edit the persona JSON.
+
+Per-surface behaviour, the default-persona rule, and how state is kept separate: [docs/multi-persona.md](docs/multi-persona.md).
 
 ---
 
@@ -160,7 +190,7 @@ On another OVOS instance:
 ```json
 {
   "name": "remote-persona",
-  "chat_module": "ovos-a2a-agent",
+  "handlers": ["ovos-a2a-agent"],
   "ovos-a2a-agent": {
     "url": "http://myhost:8337/a2a"
   }
@@ -184,7 +214,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "gpt-persona",
-  "chat_module": "ovos-openai-plugin",
+  "handlers": ["ovos-openai-plugin"],
   "ovos-openai-plugin": {
     "api_key": "sk-...",
     "model": "gpt-4o-mini"
@@ -197,7 +227,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "smart-assistant",
-  "solvers": [
+  "handlers": [
     "ovos-solver-wikipedia-plugin",
     "ovos-solver-ddg-plugin",
     "ovos-solver-wordnet-plugin",
@@ -216,7 +246,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "rivescript-bot",
-  "solvers": [
+  "handlers": [
     "ovos-solver-rivescript-plugin",
     "ovos-solver-failure-plugin"
   ]
@@ -346,6 +376,12 @@ The server itself does not enforce authentication — deploy behind a reverse pr
 
 **`Failed to load persona` (500 on startup)**
 The persona JSON file was not found or is invalid. Check the `--persona` path and validate the JSON.
+
+**`404 model_not_found` on chat requests**
+Several personas are loaded and the `model` you sent is not one of them. `GET /openai/v1/models` lists the valid names. See [docs/multi-persona.md](docs/multi-persona.md).
+
+**`duplicate persona name` on startup**
+Two loaded persona files declare the same `name`. Names are the model ids and must be unique.
 
 **All requests return `500 Persona chat failed`**
 The underlying solver chain failed. Check solver plugin installation and their individual configs (API keys, model paths, etc.).

@@ -11,7 +11,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Dict, List, Union, AsyncGenerator, Optional
 
-from fastapi import Depends, status, APIRouter, HTTPException
+from fastapi import Depends, status, APIRouter, HTTPException, Query
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, JSONResponse
 from ovos_bus_client.session import SessionManager
@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts
-from ovos_persona_server.persona import get_default_persona
+from ovos_persona_server.persona import get_default_persona, resolve_persona, available_personas
 from ovos_persona_server.schemas.ollama import (
     OllamaChatResponse,
     OllamaTagsResponse,
@@ -56,6 +56,29 @@ def timestamp() -> str:
     return datetime.datetime.utcnow().isoformat(timespec='microseconds') + "Z"
 
 
+def _as_ollama_model(persona: Persona) -> OllamaModel:
+    """Describe a persona as an Ollama model entry (name == persona name)."""
+    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
+    models_in_config = {persona.config.get(s, {}).get("model")
+                        for s in persona.solvers.loaded_modules.keys()}
+    details: OllamaModelDetails = OllamaModelDetails(
+        format="json",  # JSON definitions are used for persona
+        family="ovos-persona",  # Custom family name for this integration
+        families=solvers,  # Solvers can be considered as sub-families
+        parent_model="|".join(filter(None, models_in_config)),  # configured models
+        parameter_size="",  # Placeholder, persona doesn't expose this directly
+        quantization_level="",  # Placeholder
+    )
+    return OllamaModel(
+        name=persona.name,  # Use persona's name as model name
+        model=persona.name,  # Use persona's name as model identifier
+        digest="sha256:placeholder_digest",  # Placeholder digest
+        size=0,  # Placeholder size
+        modified_at=timestamp(),  # Current timestamp
+        details=details,
+    )
+
+
 @ollama_router.post("/chat", response_model=OllamaChatResponse, status_code=status.HTTP_200_OK)
 async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depends(get_default_persona)) -> Union[
     JSONResponse, StreamingResponse]:
@@ -74,6 +97,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
     Raises:
         HTTPException: If messages are empty or the persona call fails.
     """
+    persona = resolve_persona(request_body.model, persona)
     messages: List[OllamaChatMessage] = request_body.messages
     stream: bool = request_body.stream
     # Other parameters from request_body (tools, think, format, options, keep_alive)
@@ -194,6 +218,7 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
     Raises:
         HTTPException: If prompt is empty or the persona call fails.
     """
+    persona = resolve_persona(request_body.model, persona)
     prompt: str = request_body.prompt
     stream: bool = request_body.stream
     system: Optional[str] = request_body.system
@@ -306,80 +331,32 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
 async def tags(persona: Persona = Depends(get_default_persona)) -> OllamaTagsResponse:
     """Return a list of available Ollama-compatible models.
 
-    Exposes the loaded persona as a single model entry; solver modules appear
+    Exposes every loaded persona as a model entry; solver modules appear
     as model families.
 
     Args:
-        persona: Injected persona instance.
+        persona: Injected persona instance (used when no registry is populated).
 
     Returns:
         Response containing the list of models.
     """
-
-    # Get loaded solver modules from the persona, which can be thought of as "families"
-    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
-    # Get models configured for each solver, if any
-    models_in_config: set[Optional[str]] = {persona.config.get(s, {}).get("model")
-                                            for s in persona.solvers.loaded_modules.keys()}
-    # Filter out None values and join them for parent_model
-    parent_model_str: str = "|".join(filter(None, models_in_config))
-
-    # Construct OllamaModelDetails based on persona information
-    details: OllamaModelDetails = OllamaModelDetails(
-        format="json",  # JSON definitions are used for persona
-        family="ovos-persona",  # Custom family name for this integration
-        families=solvers,  # Solvers can be considered as sub-families
-        parent_model=parent_model_str,  # Join configured models
-        parameter_size="",  # Placeholder, persona doesn't expose this directly
-        quantization_level=""  # Placeholder
-    )
-
-    # Construct OllamaModel representing the persona
-    model: OllamaModel = OllamaModel(
-        name=persona.name,  # Use persona's name as model name
-        model=persona.name,  # Use persona's name as model identifier
-        digest="sha256:placeholder_digest",  # Placeholder digest
-        size=0,  # Placeholder size
-        modified_at=timestamp(),  # Current timestamp
-        details=details
-    )
-    return OllamaTagsResponse(
-        models=[model]
-    )
+    return OllamaTagsResponse(models=[_as_ollama_model(p)
+                                      for p in available_personas(persona)])
 
 
 @ollama_router.get("/show")
-async def show(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
+async def show(model: Optional[str] = Query(default=None),
+               persona: Persona = Depends(get_default_persona)) -> JSONResponse:
     """Show model card (Ollama-compatible stub).
 
     Args:
+        model: Persona name to describe; the default persona when omitted.
         persona: Injected persona instance.
 
     Returns:
-        Static model card for the loaded persona.
+        Static model card for the selected persona.
     """
-    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
-    models_in_config: set = {persona.config.get(s, {}).get("model")
-                             for s in persona.solvers.loaded_modules.keys()}
-    parent_model_str: str = "|".join(filter(None, models_in_config))
-
-    details: OllamaModelDetails = OllamaModelDetails(
-        format="json",
-        family="ovos-persona",
-        families=solvers,
-        parent_model=parent_model_str,
-        parameter_size="",
-        quantization_level="",
-    )
-    model: OllamaModel = OllamaModel(
-        name=persona.name,
-        model=persona.name,
-        digest="sha256:placeholder_digest",
-        size=0,
-        modified_at=timestamp(),
-        details=details,
-    )
-    return JSONResponse(model.model_dump())
+    return JSONResponse(_as_ollama_model(resolve_persona(model, persona)).model_dump())
 
 
 @ollama_router.get("/ps")
@@ -390,30 +367,10 @@ async def ps(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
         persona: Injected persona instance.
 
     Returns:
-        Ollama /api/ps format with the loaded persona listed as running.
+        Ollama /api/ps format with every loaded persona listed as running.
     """
-    solvers: List[str] = list(persona.solvers.loaded_modules.keys())
-    models_in_config: set = {persona.config.get(s, {}).get("model")
-                             for s in persona.solvers.loaded_modules.keys()}
-    parent_model_str: str = "|".join(filter(None, models_in_config))
-
-    details: OllamaModelDetails = OllamaModelDetails(
-        format="json",
-        family="ovos-persona",
-        families=solvers,
-        parent_model=parent_model_str,
-        parameter_size="",
-        quantization_level="",
-    )
-    model: OllamaModel = OllamaModel(
-        name=persona.name,
-        model=persona.name,
-        digest="sha256:placeholder_digest",
-        size=0,
-        modified_at=timestamp(),
-        details=details,
-    )
-    return JSONResponse({"models": [model.model_dump()]})
+    return JSONResponse({"models": [_as_ollama_model(p).model_dump()
+                                    for p in available_personas(persona)]})
 
 
 class OllamaPullRequest(BaseModel):

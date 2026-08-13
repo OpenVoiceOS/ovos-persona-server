@@ -12,7 +12,7 @@ from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
 
 cohere_router = APIRouter(prefix="/cohere/v1", tags=["cohere"])
 
@@ -76,6 +76,7 @@ async def cohere_chat(
     Returns:
         JSON response or newline-delimited SSE stream in Cohere format.
     """
+    persona = resolve_persona(request.model, persona)
     messages: List[Dict[str, str]] = []
     if request.preamble:
         messages.append({"role": "system", "content": request.preamble})
@@ -146,6 +147,7 @@ async def cohere_generate(
     Returns:
         JSON response or newline-delimited stream in Cohere format.
     """
+    persona = resolve_persona(request.model, persona)
     messages = [{"role": "user", "content": request.prompt}]
     gen_id = _new_id()
     resp_id = _new_id()

@@ -164,11 +164,16 @@ async def generate_stream(
 async def info(persona: Persona = Depends(get_default_persona)) -> JSONResponse:
     """Return model info (HuggingFace TGI-compatible).
 
+    The TGI protocol serves exactly one model per endpoint — neither ``/generate``
+    nor ``/info`` carries a model field — so this surface always uses the default
+    persona and cannot select between several. Use a model-aware surface
+    (OpenAI, Ollama, Anthropic, Cohere, Gemini) to reach the other personas.
+
     Args:
         persona: Injected persona instance.
 
     Returns:
-        TGI-format model info dict.
+        TGI-format model info dict for the default persona.
     """
     return JSONResponse({
         "model_id": persona.name,

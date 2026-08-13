@@ -18,6 +18,126 @@ from ovos_persona_server.config import settings
 # Dependency injection
 default_persona: Optional[Persona] = None
 
+# Registry of every persona served by this process, keyed by persona name.
+# Insertion ordered: the first entry is the default unless one was named
+# explicitly. Empty in tests that inject a persona via dependency_overrides.
+personas: Dict[str, Persona] = {}
+
+
+class ModelNotFoundError(HTTPException):
+    """Raised when a request names a model that no loaded persona answers to.
+
+    Carries an OpenAI-shaped error object; :func:`create_persona_app` installs a
+    handler that renders it as ``{"error": {...}}`` like the OpenAI API does.
+    """
+
+    def __init__(self, model: str, available: List[str]) -> None:
+        names = ", ".join(available)
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": f"The model `{model}` does not exist. "
+                           f"Available models: {names}",
+                "type": "invalid_request_error",
+                "param": "model",
+                "code": "model_not_found",
+            },
+        )
+
+
+def register_personas(loaded: List[Persona], default_name: Optional[str] = None) -> Persona:
+    """Populate the process-wide persona registry and pick the default.
+
+    Args:
+        loaded: Personas in the order they were given on the command line.
+        default_name: Name of the persona to serve when a request omits ``model``.
+                      Defaults to the first persona in ``loaded``.
+
+    Returns:
+        The default persona.
+
+    Raises:
+        ValueError: If ``loaded`` is empty, two personas share a name, or
+                    ``default_name`` is not among the loaded personas.
+    """
+    global default_persona
+    if not loaded:
+        raise ValueError("at least one persona must be loaded")
+    registry: Dict[str, Persona] = {}
+    for p in loaded:
+        if p.name in registry:
+            raise ValueError(f"duplicate persona name: {p.name!r} — "
+                             f"persona names are the model ids and must be unique")
+        registry[p.name] = p
+    if default_name is not None and default_name not in registry:
+        raise ValueError(f"--default-persona {default_name!r} is not one of the "
+                         f"loaded personas: {', '.join(registry)}")
+    personas.clear()
+    personas.update(registry)
+    default_persona = registry[default_name] if default_name else loaded[0]
+    return default_persona
+
+
+def available_personas(fallback: Optional[Persona] = None) -> List[Persona]:
+    """Every persona this process serves, for the model-listing endpoints.
+
+    Falls back to the injected persona when the registry is empty (routers
+    mounted standalone in tests, or a persona supplied via
+    ``dependency_overrides``).
+    """
+    if personas:
+        return list(personas.values())
+    return [fallback] if fallback is not None else []
+
+
+def multi_persona() -> bool:
+    """Whether more than one persona is loaded.
+
+    The ``model`` field only becomes authoritative in multi-persona mode; with a
+    single persona it stays advisory, so existing single-persona deployments
+    that send ``model="gpt-4"`` keep working.
+    """
+    return len(personas) > 1
+
+
+def resolve_persona(model: Optional[str], fallback: Persona,
+                    strict: bool = True) -> Persona:
+    """Map an incoming ``model`` value to a loaded persona.
+
+    Args:
+        model: The model name the client asked for, if any.
+        fallback: The default persona (injected by ``get_default_persona``).
+        strict: When True an unknown name raises :class:`ModelNotFoundError`.
+                When False it falls back to the default — used by the vendor
+                surfaces where the model id also selects the response format
+                (AWS Bedrock), so a real vendor id must not be an error.
+
+    Returns:
+        The persona that must answer this request.
+    """
+    if not multi_persona() or not model:
+        return fallback
+    persona = personas.get(model)
+    if persona is not None:
+        return persona
+    if strict:
+        raise ModelNotFoundError(model, list(personas))
+    return fallback
+
+
+def memory_session_id(persona: Persona, session_id: str) -> str:
+    """Namespace a conversation key by persona when several are served.
+
+    Each persona owns its own memory plugin instance, but a plugin backed by
+    shared external storage (a vector DB, a database) keys only by session id,
+    so two personas would otherwise read each other's history for the same
+    caller. Single-persona deployments keep the bare session id so existing
+    stored conversations stay addressable.
+    """
+    if not multi_persona():
+        return session_id
+    return f"{persona.name}::{session_id}"
+
 
 def memory_enabled() -> bool:
     """Whether the chat path transparently applies the persona's memory plugin.
@@ -104,7 +224,7 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
     if memory is None:
         memory = memory_enabled()
     if memory and persona.memory is not None:
-        sid = session_id or sess.session_id
+        sid = memory_session_id(persona, session_id or sess.session_id)
         utterance = _last_user_utterance(messages)
         context = persona.memory.build_conversation_context(utterance, sid)
         reply = persona.chat(context, sess=sess)
@@ -127,7 +247,7 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
     if memory is None:
         memory = memory_enabled()
     if memory and persona.memory is not None:
-        sid = session_id or sess.session_id
+        sid = memory_session_id(persona, session_id or sess.session_id)
         utterance = _last_user_utterance(messages)
         context = persona.memory.build_conversation_context(utterance, sid)
 

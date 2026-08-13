@@ -1,6 +1,6 @@
 # API Compatibility
 
-All seven API surfaces share a single backing `Persona` instance loaded at startup. The `model` field in requests is accepted but ignored — the persona name is used as the model identifier in all responses. Auth headers are accepted and ignored.
+All seven API surfaces share the personas loaded at startup. The `model` field selects one of them: a persona's `name` is its model id, and the persona name is used as the model identifier in responses. With a single persona loaded the field is accepted but ignored, exactly as before. With several personas an unknown name returns HTTP 404 and an omitted field selects the default persona — per-surface details in [multi-persona.md](multi-persona.md). Auth headers are accepted and ignored.
 
 ## 1. OpenAI — `/openai/v1`
 

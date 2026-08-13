@@ -6,17 +6,20 @@ and includes various API routers for chat, embeddings, Ollama, persona status,
 and mock OpenAI Vector Stores. It now centrally manages the unified SQLite database
 initialization using SQLAlchemy.
 """
+import glob
 import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from ovos_persona import Persona
 
 import ovos_persona_server.persona
+from ovos_persona_server.persona import ModelNotFoundError, register_personas
 
 
 @asynccontextmanager
@@ -34,35 +37,81 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
-def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) -> FastAPI:
+def _load_persona(path: str) -> Persona:
+    """Build a :class:`Persona` from a persona JSON file.
+
+    The persona's ``name`` is its model id on every API surface. When the file
+    does not set one, the file name is used (unchanged legacy behaviour).
+    """
+    with open(path) as f:
+        config = json.load(f)
+    config["name"] = config.get("name") or os.path.basename(path)
+    return Persona(config["name"], config)
+
+
+def _collect_persona_paths(persona_path: Optional[str] = None,
+                           personas_dir: Optional[str] = None) -> List[str]:
+    """Resolve the CLI persona selectors to an ordered list of JSON files.
+
+    ``persona_path`` accepts a single path (legacy) or a sequence of paths;
+    ``personas_dir`` contributes every ``*.json`` in the directory, sorted by
+    name so the load order is stable.
+    """
+    paths: List[str] = []
+    if persona_path:
+        if isinstance(persona_path, (str, bytes, os.PathLike)):
+            paths.append(str(persona_path))
+        else:
+            paths.extend(str(p) for p in persona_path)
+    if personas_dir:
+        if not os.path.isdir(personas_dir):
+            raise ValueError(f"--personas-dir is not a directory: {personas_dir}")
+        found = sorted(glob.glob(os.path.join(personas_dir, "*.json")))
+        if not found:
+            raise ValueError(f"no *.json persona files found in {personas_dir}")
+        paths.extend(p for p in found if p not in paths)
+    return paths
+
+
+def create_persona_app(persona_path: Optional[str] = None,
+                       a2a_base_url: Optional[str] = None,
+                       personas_dir: Optional[str] = None,
+                       default_persona: Optional[str] = None) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
+    One process can serve several personas. A persona's ``name`` is its model
+    id: clients pick a persona through the ``model`` field (or the model path
+    segment) of whichever vendor API they speak. See ``docs/multi-persona.md``.
+
     Args:
-        persona_path: Path to a persona JSON file.
+        persona_path: Path to a persona JSON file, or a sequence of paths.
         a2a_base_url: If provided, mounts an A2A-compatible endpoint at ``/a2a``
                       using this URL as the public base URL in the Agent Card
-                      (e.g. ``http://myhost:8337/a2a``). Requires ``a2a-sdk``
-                      to be installed (``uv pip install 'ovos-persona-server[a2a]'``).
+                      (e.g. ``http://myhost:8337/a2a``). Each persona also gets
+                      its own card at ``/a2a/<persona name>``. Requires
+                      ``a2a-sdk`` (``uv pip install 'ovos-persona-server[a2a]'``).
+        personas_dir: Directory whose ``*.json`` files are all loaded as personas.
+        default_persona: Name of the persona that answers requests which do not
+                         name a model. Defaults to the first persona loaded.
 
     Returns:
         FastAPI: The configured FastAPI application instance.
     """
-
-    if persona_path:
-        with open(persona_path) as f:
-            persona = json.load(f)
-        persona["name"] = persona.get("name") or os.path.basename(persona_path)
+    paths = _collect_persona_paths(persona_path, personas_dir)
+    if paths:
+        loaded = [_load_persona(p) for p in paths]
     else:
         # No persona file: fall back to the env-var-driven default persona
         # (Settings.persona_config also honors the PERSONA_PATH env var) — this is
         # the behavior the config docstrings describe.
         from ovos_persona_server.config import Settings
-        persona = Settings().persona_config
-        persona["name"] = persona.get("name") or "persona"
+        config = Settings().persona_config
+        config["name"] = config.get("name") or "persona"
+        loaded = [Persona(config["name"], config)]
 
     # TODO - move to dependency injection
-    ovos_persona_server.persona.default_persona = persona = Persona(persona["name"], persona)
+    persona = register_personas(loaded, default_persona)
 
     from ovos_persona_server.version import VERSION_MAJOR, VERSION_ALPHA, VERSION_BUILD, VERSION_MINOR
 
@@ -74,6 +123,11 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
                   description="OpenAI/Ollama compatible API for OVOS Personas and Solvers",
                   version=version_str,
                   lifespan=_lifespan)
+
+    @app.exception_handler(ModelNotFoundError)
+    async def _model_not_found(request: Request, exc: ModelNotFoundError) -> JSONResponse:
+        """Render an unknown model id as an OpenAI-shaped error object."""
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
     app.add_middleware(
         CORSMiddleware,
@@ -131,6 +185,11 @@ def create_persona_app(persona_path: str, a2a_base_url: Optional[str] = None) ->
     if a2a_base_url is not None:
         from ovos_persona_server.a2a import _A2A_AVAILABLE, create_a2a_application
         if _A2A_AVAILABLE:
+            # Per-persona agent cards first: Starlette matches mounts in order,
+            # so "/a2a" would otherwise swallow "/a2a/<name>/...".
+            for name, p in ovos_persona_server.persona.personas.items():
+                app.mount(f"/a2a/{name}",
+                          create_a2a_application(p, f"{a2a_base_url.rstrip('/')}/{name}").build())
             a2a_starlette = create_a2a_application(persona, a2a_base_url).build()
             app.mount("/a2a", a2a_starlette)
         else:

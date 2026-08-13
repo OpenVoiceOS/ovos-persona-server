@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.15.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.1a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.0a1...0.15.1a1)
+
+**Merged pull requests:**
+
+- fix: hand ToolBox plugins their own config section [\#80](https://github.com/OpenVoiceOS/ovos-persona-server/pull/80) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.15.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a2...0.15.0a1)
+
+**Merged pull requests:**
+
+- feat\(openai\): function calling through the OVOS tool model \(client + persona ToolBox tools\) [\#75](https://github.com/OpenVoiceOS/ovos-persona-server/pull/75) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.14.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a1...0.14.0a2)
+
+**Merged pull requests:**
+
+- docs: cross-link the technical manual [\#66](https://github.com/OpenVoiceOS/ovos-persona-server/pull/66) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.14.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a2...0.14.0a1)
+
+**Merged pull requests:**
+
+- feat: serve multiple personas from one process, selected by `model` [\#72](https://github.com/OpenVoiceOS/ovos-persona-server/pull/72) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a1...0.13.4a2)
+
+**Merged pull requests:**
+
+- refactor: migrate MCP server to the fastmcp package [\#71](https://github.com/OpenVoiceOS/ovos-persona-server/pull/71) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a1) (2026-08-03)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a2...0.13.4a1)
