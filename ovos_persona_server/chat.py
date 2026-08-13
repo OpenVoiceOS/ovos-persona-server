@@ -23,6 +23,9 @@ from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, Tool
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
+from ovos_persona_server.server_tools import (
+    build_server_tool_specs, cached_registry, run_tool_loop,
+)
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
     _flatten_text, _role, _messages_to_agent,
@@ -43,6 +46,45 @@ def _tool_capable_engine(persona: Persona):
     except Exception:  # noqa: BLE001
         modules = list(getattr(persona.solvers, "loaded_modules", {}).values())
     return next((m for m in modules if getattr(m, "supports_tools", False)), None)
+
+
+def _stream_tool_result(resp: AgentMessage, completion_id: str,
+                        created: int, model: str) -> AsyncGenerator[str, None]:
+    """Emit a resolved tool-loop result as OpenAI streaming SSE deltas.
+
+    Tools are resolved up front through the non-streaming ``continue_chat`` loop
+    (the streaming seam cannot report tool_calls). This then streams that result:
+    a client-side tool request as a single ``tool_calls`` delta with
+    ``finish_reason="tool_calls"``, or the final answer streamed sentence by
+    sentence with ``finish_reason="stop"``.
+    """
+    async def gen() -> AsyncGenerator[str, None]:
+        def _chunk(delta: Dict[str, Any], finish=None) -> str:
+            payload = {
+                "id": f"chatcmpl-{completion_id}", "object": "chat.completion.chunk",
+                "created": created, "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+            }
+            return f"data: {json.dumps(payload)}\n\n"
+
+        yield _chunk({"role": "assistant", "content": ""})
+        tool_calls = getattr(resp, "tool_calls", None)
+        if tool_calls:
+            delta_calls = [
+                {"index": i, "id": tc.id, "type": "function",
+                 "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)}}
+                for i, tc in enumerate(tool_calls)
+            ]
+            yield _chunk({"role": "assistant", "tool_calls": delta_calls})
+            yield _chunk({}, finish=FinishReason.TOOL_CALLS.value)
+        else:
+            for sentence in (resp.content or "").split("\n"):
+                if sentence:
+                    yield _chunk({"role": "assistant", "content": sentence})
+            yield _chunk({}, finish=FinishReason.STOP.value)
+        yield "data: [DONE]\n\n"
+
+    return gen()
 
 
 @asynccontextmanager
@@ -66,12 +108,18 @@ async def chat_completions(
 ) -> Union[JSONResponse, StreamingResponse]:
     """Handle OpenAI-compatible chat completions (streaming and non-streaming).
 
-    When ``tools`` is supplied it is honored if the persona has a tool-capable chat
-    engine (``supports_tools``): the request is routed to it and any ``tool_calls`` are
-    returned (``finish_reason="tool_calls"``) for the client to execute — the server is
-    a stateless function-calling passthrough, it does not run the tools itself. If no
-    tool-capable engine is configured, a 501 is returned rather than silently ignoring
-    ``tools``. Remaining OpenAI parameters are accepted and not acted upon.
+    Function calling goes through the OVOS ``ChatEngine`` abstraction. Client
+    ``tools`` and the persona's own ``ToolBox`` plugins are offered together to a
+    tool-capable engine (``supports_tools``). Calls to a persona ToolBox tool are
+    executed server-side in an agentic loop and fed back to the model; calls to a
+    client tool are returned (``finish_reason="tool_calls"``) for the caller to
+    execute. If the client sends ``tools`` but no tool-capable engine exists, a
+    501 is returned rather than silently ignoring them. Streaming is supported:
+    tools are resolved through the non-streaming loop first (the streaming seam
+    cannot report tool_calls), then the result is emitted as SSE deltas — the
+    final answer streamed sentence by sentence, or a single ``tool_calls`` delta
+    for a client-side call. Remaining OpenAI parameters are accepted and not
+    acted upon.
 
     Args:
         request_body: Chat completion request containing messages and options.
@@ -91,26 +139,46 @@ async def chat_completions(
     completion_id: str = ''.join(random.choices(string.ascii_letters + string.digits, k=28))
     completion_timestamp: int = int(time.time())
 
-    # Function-calling: honor `tools` via a tool-capable engine, or fail loudly.
-    if request_body.tools:
-        if stream:
-            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                                detail="Tool calling is not supported with stream=true; use stream=false.")
-        engine = _tool_capable_engine(persona)
-        if engine is None:
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="The configured persona has no tool-capable chat engine; "
-                       "the 'tools' parameter cannot be honored.")
-        tool_specs = [t.model_dump(exclude_unset=True) for t in request_body.tools]
+    # Function-calling. Tools are modelled through the OVOS ChatEngine seam:
+    # a tool-capable engine (``supports_tools``) receives the offered tools on
+    # ``continue_chat`` and returns an ``AgentMessage`` whose ``tool_calls`` the
+    # server maps back to OpenAI. Two tool sources are merged and offered
+    # together:
+    #   * client tools (the OpenAI ``tools`` field) — the caller executes them;
+    #     the model's ``tool_calls`` are relayed back (``finish_reason=tool_calls``).
+    #   * the persona's own ToolBox plugins — the server executes them in an
+    #     agentic loop (see ``server_tools.run_tool_loop``) and feeds results back.
+    # The streaming seam (``stream_sentences``) has no tools argument and cannot
+    # report tool_calls, so tool detection always runs through the non-streaming
+    # ``continue_chat`` loop. On a streaming request the resolved result is then
+    # emitted as SSE deltas: the final answer streamed sentence by sentence, or a
+    # single tool_calls delta when the model requests a client-side tool.
+    engine = _tool_capable_engine(persona)
+    registry = cached_registry() if engine is not None else {}
+    server_specs, _server_names = build_server_tool_specs(registry) if engine is not None else ([], set())
+    client_specs = [t.model_dump(exclude_unset=True) for t in request_body.tools] if request_body.tools else []
+
+    if request_body.tools and engine is None:
+        # The client explicitly asked for tools but no engine can honor them.
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="The configured persona has no tool-capable chat engine; "
+                   "the 'tools' parameter cannot be honored.")
+
+    if engine is not None and (client_specs or server_specs):
         sess = SessionManager().get()
         try:
-            resp = engine.continue_chat(_messages_to_agent(messages),
-                                        session_id=sess.session_id, lang=sess.lang,
-                                        units=sess.system_unit, tools=tool_specs)
+            resp = run_tool_loop(engine, _messages_to_agent(messages), client_specs,
+                                 session_id=sess.session_id, lang=sess.lang,
+                                 units=sess.system_unit, registry=registry)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {e}") from e
+
+        if stream:
+            return StreamingResponse(
+                _stream_tool_result(resp, completion_id, completion_timestamp, persona.name),
+                media_type="text/event-stream")
 
         rc_tool_calls: List[ChatCompletionMessageToolCall] = []
         finish_reason = FinishReason.STOP
