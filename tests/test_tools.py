@@ -309,19 +309,10 @@ class TestMCPServer:
             return_value={"fake_toolbox": FakeToolBox},
         ):
             mcp = build_mcp_server()
-        # Probe the tool registry via the internal _tool_manager if available.
-        # Different MCP SDK versions expose different APIs; we use a best-effort
-        # approach so the test does not break across SDK minor versions.
-        tool_names: set = set()
-        if hasattr(mcp, "_tool_manager"):
-            tm = mcp._tool_manager
-            # list_tools() is synchronous in some versions, async in others
-            import asyncio, inspect
-            raw = tm.list_tools()
-            if inspect.isawaitable(raw):
-                raw = asyncio.get_event_loop().run_until_complete(raw)
-            tool_names = {t.name for t in raw}
-        assert isinstance(tool_names, set)
+        import asyncio
+        tools = asyncio.run(mcp.list_tools())
+        tool_names = {t.name for t in tools}
+        assert tool_names == {"echo", "add"}
 
 
 # ---------------------------------------------------------------------------
@@ -480,30 +471,16 @@ class TestMCPServerExtended:
     def test_mcp_handler_invokes_tool_and_returns_json(self):
         """Registered MCP handler wraps invoke_tool and returns JSON string."""
         from ovos_persona_server.mcp_server import build_mcp_server
+        import asyncio
         import json as _json
         with patch(
             "ovos_persona_server.tools.find_plugins",
             return_value={"fake_toolbox": FakeToolBox},
         ):
             mcp = build_mcp_server()
-        # Find the echo handler by introspecting _tool_manager
-        if not hasattr(mcp, "_tool_manager"):
-            pytest.skip("MCP SDK version lacks _tool_manager")
-        import asyncio, inspect
-        tm = mcp._tool_manager
-        raw = tm.list_tools()
-        if inspect.isawaitable(raw):
-            raw = asyncio.get_event_loop().run_until_complete(raw)
-        echo_tool = next((t for t in raw if t.name == "echo"), None)
-        if echo_tool is None:
-            pytest.skip("echo tool not found in MCP registry")
-        # Call the handler directly
-        fn = echo_tool.fn
-        result_raw = fn(message="hello MCP")
-        if inspect.isawaitable(result_raw):
-            result_raw = asyncio.get_event_loop().run_until_complete(result_raw)
-        result = _json.loads(result_raw)
-        assert result == {"echo": "hello MCP"}
+        result = asyncio.run(mcp.call_tool("echo", {"message": "hello MCP"}))
+        text = result.content[0].text
+        assert _json.loads(text) == {"echo": "hello MCP"}
 
     def test_mcp_handler_returns_error_json_on_failure(self):
         """If the underlying tool raises, the MCP handler returns JSON error."""
@@ -535,22 +512,10 @@ class TestMCPServerExtended:
         ):
             mcp = build_mcp_server()
 
-        if not hasattr(mcp, "_tool_manager"):
-            pytest.skip("MCP SDK version lacks _tool_manager")
-        import asyncio, inspect
-        tm = mcp._tool_manager
-        raw = tm.list_tools()
-        if inspect.isawaitable(raw):
-            raw = asyncio.get_event_loop().run_until_complete(raw)
-        err_tool = next((t for t in raw if t.name == "errortool"), None)
-        if err_tool is None:
-            pytest.skip("errortool not found in MCP registry")
-        fn = err_tool.fn
-        result_raw = fn(x="test")
-        if inspect.isawaitable(result_raw):
-            result_raw = asyncio.get_event_loop().run_until_complete(result_raw)
-        result = _json.loads(result_raw)
-        assert "error" in result
+        import asyncio
+        result = asyncio.run(mcp.call_tool("errortool", {"x": "test"}))
+        text = result.content[0].text
+        assert "error" in _json.loads(text)
 
     def test_mcp_build_with_no_plugins_succeeds(self):
         """build_mcp_server with empty plugin list succeeds and logs info."""
