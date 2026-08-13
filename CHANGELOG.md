@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.16.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.1a1...0.16.0a1)
+
+**Merged pull requests:**
+
+- feat\(openai\): configurable client system-prompt strategy \(ignore/replace/append\) [\#74](https://github.com/OpenVoiceOS/ovos-persona-server/pull/74) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.15.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.1a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.0a1...0.15.1a1)
