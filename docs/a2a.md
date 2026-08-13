@@ -125,7 +125,7 @@ On another OVOS instance, create a persona that points to this server:
 ```json
 {
   "name": "remote-persona",
-  "chat_module": "ovos-a2a-agent",
+  "handlers": ["ovos-a2a-agent"],
   "ovos-a2a-agent": {
     "url": "http://myhost:8337/a2a"
   }

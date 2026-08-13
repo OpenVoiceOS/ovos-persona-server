@@ -23,12 +23,14 @@ A single HTTP server that exposes one or more OVOS `Persona`s as **eight concurr
 
 ## What is a Persona?
 
-An OVOS Persona is a JSON file that chains together one or more **solver plugins**. Solvers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
+An OVOS Persona is a JSON file that chains together one or more **handler plugins** (also called solvers, the legacy key name). Handlers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
+
+See the [OVOS technical manual: Personas](https://tigregotico.github.io/ovos-technical-manual/personas/) for the full persona file schema.
 
 ```json
 {
   "name": "OldSchoolBot",
-  "solvers": [
+  "handlers": [
     "ovos-solver-wikipedia-plugin",
     "ovos-solver-ddg-plugin",
     "ovos-solver-plugin-wolfram-alpha",
@@ -188,7 +190,7 @@ On another OVOS instance:
 ```json
 {
   "name": "remote-persona",
-  "chat_module": "ovos-a2a-agent",
+  "handlers": ["ovos-a2a-agent"],
   "ovos-a2a-agent": {
     "url": "http://myhost:8337/a2a"
   }
@@ -212,7 +214,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "gpt-persona",
-  "chat_module": "ovos-openai-plugin",
+  "handlers": ["ovos-openai-plugin"],
   "ovos-openai-plugin": {
     "api_key": "sk-...",
     "model": "gpt-4o-mini"
@@ -225,7 +227,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "smart-assistant",
-  "solvers": [
+  "handlers": [
     "ovos-solver-wikipedia-plugin",
     "ovos-solver-ddg-plugin",
     "ovos-solver-wordnet-plugin",
@@ -244,7 +246,7 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "rivescript-bot",
-  "solvers": [
+  "handlers": [
     "ovos-solver-rivescript-plugin",
     "ovos-solver-failure-plugin"
   ]

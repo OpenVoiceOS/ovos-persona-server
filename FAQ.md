@@ -35,7 +35,7 @@ ovos-persona-server --persona /path/to/persona.json --host 0.0.0.0 --port 8337
 ```json
 {
   "name": "My Assistant",
-  "solvers": ["ovos-solver-openai-plugin"],
+  "handlers": ["ovos-solver-openai-plugin"],
   "ovos-solver-openai-plugin": {"api_url": "...", "key": "sk-..."}
 }
 ```
