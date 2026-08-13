@@ -162,7 +162,21 @@ def run_tool_loop(
         except Exception:  # noqa: BLE001
             registry = {}
     server_specs, server_names = build_server_tool_specs(registry)
-    offered = list(client_specs) + server_specs
+    # A client tool sharing a name with one of the persona's own tools would
+    # otherwise be offered to the model twice, and the call would be executed
+    # server-side rather than relayed -- silently running something other than
+    # what the caller asked for. The server tool wins (it is the one that will
+    # actually execute), and the shadowed client spec is dropped so the model
+    # never sees a duplicate name.
+    shadowed = [spec for spec in client_specs
+                if spec.get("function", {}).get("name") in server_names]
+    if shadowed:
+        LOG.warning("client tool(s) %s shadowed by persona tools of the same "
+                    "name; the persona's tools will be used",
+                    [spec["function"]["name"] for spec in shadowed])
+    offered = [spec for spec in client_specs
+               if spec.get("function", {}).get("name") not in server_names]
+    offered += server_specs
 
     convo = list(messages)
     resp: AgentMessage = AgentMessage(role=MessageRole.ASSISTANT, content="")
