@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a2...0.14.0a1)
+
+**Merged pull requests:**
+
+- feat: serve multiple personas from one process, selected by `model` [\#72](https://github.com/OpenVoiceOS/ovos-persona-server/pull/72) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.13.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a2) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a1...0.13.4a2)
