@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a2...0.15.0a1)
+
+**Merged pull requests:**
+
+- feat\(openai\): function calling through the OVOS tool model \(client + persona ToolBox tools\) [\#75](https://github.com/OpenVoiceOS/ovos-persona-server/pull/75) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.14.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a2) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a1...0.14.0a2)
