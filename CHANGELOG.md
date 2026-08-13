@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.1a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.0a1...0.15.1a1)
+
+**Merged pull requests:**
+
+- fix: hand ToolBox plugins their own config section [\#80](https://github.com/OpenVoiceOS/ovos-persona-server/pull/80) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.15.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.0a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a2...0.15.0a1)
