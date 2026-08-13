@@ -38,12 +38,15 @@ def main() -> None:
         default=None,
         type=str,
     )
+    parser.add_argument("--mcp", help="mount MCP server at /mcp (requires ovos-persona-server[mcp])",
+                        action="store_true")
     args: Any = parser.parse_args()  # Using Any for args as argparse.Namespace is dynamic
 
     app = create_persona_app(args.persona,
                              a2a_base_url=args.a2a_base_url,
                              personas_dir=args.personas_dir,
-                             default_persona=args.default_persona)
+                             default_persona=args.default_persona,
+                             enable_mcp=bool(args.mcp))
 
     uvicorn.run(app, port=args.port, host=args.host, log_level="debug")
 

@@ -272,7 +272,7 @@ automatically surfaced over two protocols when the server starts.
 pip install ovos-persona-server[mcp]
 ```
 
-Without the `[mcp]` extra only the UTCP endpoints are active.
+Without the `[mcp]` extra, or without passing `--mcp`, only the UTCP endpoints are active.
 
 ### UTCP — Universal Tool Calling Protocol
 
@@ -323,9 +323,11 @@ curl -X POST http://localhost:8337/tools/my_tool \
 
 ### MCP — Model Context Protocol
 
-When the `[mcp]` extra is installed, the server mounts an MCP SSE endpoint at
-`/mcp`.  Each installed `ToolBox` tool is registered as an MCP tool with the
-name, description, and JSON Schema derived from its OPM definition.
+The MCP endpoint is opt-in: pass `--mcp` on the command line (in addition to
+installing the `[mcp]` extra) to mount an MCP endpoint at `/mcp`. Installing
+the extra alone does **not** expose the endpoint. Each installed `ToolBox`
+tool is registered as an MCP tool with the name, description, and JSON Schema
+derived from its OPM definition.
 
 **Claude Desktop / MCP client config:**
 

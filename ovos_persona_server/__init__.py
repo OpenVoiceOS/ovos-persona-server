@@ -76,7 +76,8 @@ def _collect_persona_paths(persona_path: Optional[str] = None,
 def create_persona_app(persona_path: Optional[str] = None,
                        a2a_base_url: Optional[str] = None,
                        personas_dir: Optional[str] = None,
-                       default_persona: Optional[str] = None) -> FastAPI:
+                       default_persona: Optional[str] = None,
+                       enable_mcp: bool = False) -> FastAPI:
     """
     Creates and configures the FastAPI application for the Persona Server.
 
@@ -94,6 +95,9 @@ def create_persona_app(persona_path: Optional[str] = None,
         personas_dir: Directory whose ``*.json`` files are all loaded as personas.
         default_persona: Name of the persona that answers requests which do not
                          name a model. Defaults to the first persona loaded.
+        enable_mcp: Mount the MCP server (streamable-HTTP transport) at ``/mcp``.
+                    Opt-in: installing the ``mcp`` extra alone does not expose
+                    the endpoint. Requires ``ovos-persona-server[mcp]``.
 
     Returns:
         FastAPI: The configured FastAPI application instance.
@@ -199,13 +203,18 @@ def create_persona_app(persona_path: Optional[str] = None,
                 "Install with: uv pip install 'ovos-persona-server[a2a]'"
             )
 
-    # Mount MCP server (streamable-HTTP transport) when the `mcp` package is available.
+    # Mount MCP server (streamable-HTTP transport) — opt-in via enable_mcp/--mcp.
     # mount_mcp_on_app sets streamable_http_path="/" so the endpoint lands at /mcp
     # (not /mcp/mcp) and chains the session manager into the host app lifespan.
-    try:
-        from ovos_persona_server.mcp_server import mount_mcp_on_app
-        mount_mcp_on_app(app)
-    except ImportError:
-        pass  # mcp extra not installed — UTCP only
+    if enable_mcp:
+        try:
+            from ovos_persona_server.mcp_server import mount_mcp_on_app
+            mount_mcp_on_app(app)
+        except ImportError:
+            logging.getLogger(__name__).warning(
+                "--mcp was set but the mcp extra is not installed — "
+                "the /mcp endpoint will not be available. "
+                "Install with: uv pip install 'ovos-persona-server[mcp]'"
+            )
 
     return app
