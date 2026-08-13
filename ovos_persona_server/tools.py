@@ -63,7 +63,19 @@ def _load_toolboxes() -> List[Any]:
     bus = None
     for name, cls in plugin_classes.items():
         try:
-            instance = cls(config=cfg, bus=bus)
+            # Hand the plugin its OWN config section when the persona defines
+            # one, keyed by plugin name -- the same shape solver plugins get.
+            # Both existing ToolBox implementations (ovos-mcp-toolbox and
+            # ovos-utcp-toolbox) read their settings straight off `config`
+            # (`config["transport"]`, `config["command"]`, `config["url"]`),
+            # so handing them the whole persona blob meant they could never be
+            # configured at all: MCPToolBox raised KeyError('command'), which
+            # discover_tools() swallows into a warning, and the persona simply
+            # reported zero tools. The full blob is still passed when no
+            # section exists, so a toolbox that self-locates keeps working.
+            plugin_cfg = cfg.get(name) if isinstance(cfg, dict) else None
+            instance = cls(config=plugin_cfg if isinstance(plugin_cfg, dict) else cfg,
+                           bus=bus)
             instances.append(instance)
             LOG.debug("Loaded ToolBox plugin: %s", name)
         except Exception as exc:
