@@ -1,0 +1,30 @@
+name: End-to-End Tests
+# Deploy-realistic cross-plugin RAG tests.
+#
+# Unlike the unit matrix (build_tests.yml), this installs the FULL real stack the
+# way a user would deploy it and runs tests/e2e for real — no dependency overrides:
+#   - text embeddings: ovos-gguf-embeddings-plugin (downloads all-MiniLM-L6-v2)
+#   - vector DBs:       ovos-chromadb-embeddings-plugin + ovos-qdrant-embeddings-plugin
+#   - chat solver:      ovos-solver-openai-plugin (upstream LLM call mocked in-test)
+#   - RAG memory:       ovos-openai-plugin PersonaServerRAGMemory
+#
+# The whole stack is released on PyPI and pinned in the [e2e] extra, so this runs with
+# no pre_install_pip git-refs.
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+jobs:
+  e2e:
+    uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
+    secrets: inherit
+    with:
+      # e2e is heavy (model download + native deps); a single modern Python is enough.
+      python_versions: '["3.11"]'
+      install_extras: "e2e"
+      # The full real stack is now released and pinned in the [e2e] extra
+      # (ovos-plugin-manager>=2.7.0a1, ovos-persona>=0.9.0a6, ovos-openai-plugin>=2.0.8a1,
+      # ovos-chromadb-embeddings-plugin>=0.3.0a4) — no pre_install_pip git-refs needed.
+      test_path: "tests/e2e"
+      pr_comment: true
