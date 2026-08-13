@@ -49,6 +49,15 @@ def _build_app() -> FastAPI:
     import ovos_persona_server.persona as persona_mod
     from ovos_persona_server.persona import get_default_persona
 
+    # These tests mount the router standalone and supply the persona via
+    # dependency_overrides, so they rely on available_personas() falling
+    # back to the injected persona. That fallback only applies when the
+    # process-wide registry is EMPTY, and any earlier module that built a
+    # real app (tests/e2e/test_e2e_embeddings.py) has already populated it
+    # -- the registry is process-global and outlives the module. Clear it
+    # so this module's expectations hold regardless of test order.
+    persona_mod.personas.clear()
+
     persona = MagicMock()
     persona.name = "test-persona"
     persona.chat.return_value = _REPLY
