@@ -193,8 +193,8 @@ def create_persona_app(persona_path: Optional[str] = None,
             # so "/a2a" would otherwise swallow "/a2a/<name>/...".
             for name, p in ovos_persona_server.persona.personas.items():
                 app.mount(f"/a2a/{name}",
-                          create_a2a_application(p, f"{a2a_base_url.rstrip('/')}/{name}").build())
-            a2a_starlette = create_a2a_application(persona, a2a_base_url).build()
+                          create_a2a_application(p, f"{a2a_base_url.rstrip('/')}/{name}"))
+            a2a_starlette = create_a2a_application(persona, a2a_base_url)
             app.mount("/a2a", a2a_starlette)
         else:
             logging.getLogger(__name__).warning(
