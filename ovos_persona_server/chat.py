@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts, backend_model_name
 from ovos_persona_server.system_prompt import apply_system_prompt_strategy
 from ovos_persona_server.server_tools import (
-    build_server_tool_specs, cached_registry, run_tool_loop,
+    build_server_tool_specs, cached_registry, run_tool_loop, ToolChoiceError,
 )
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
@@ -119,8 +119,11 @@ async def chat_completions(
     tools are resolved through the non-streaming loop first (the streaming seam
     cannot report tool_calls), then the result is emitted as SSE deltas — the
     final answer streamed sentence by sentence, or a single ``tool_calls`` delta
-    for a client-side call. Remaining OpenAI parameters are accepted and not
-    acted upon.
+    for a client-side call. ``tool_choice`` is honored by shaping which tools
+    are offered (``"none"`` offers none, a named function restricts the offer
+    to that one tool); ``"tool"`` (force some call) cannot be honored through
+    the ``ChatEngine`` contract and returns 422 rather than being silently
+    ignored. Remaining OpenAI parameters are accepted and not acted upon.
 
     Args:
         request_body: Chat completion request containing messages and options.
@@ -174,10 +177,17 @@ async def chat_completions(
 
     if engine is not None and (client_specs or server_specs):
         sess = SessionManager().get()
+        tool_choice = request_body.tool_choice.model_dump(exclude_unset=True) \
+            if hasattr(request_body.tool_choice, "model_dump") \
+            else (request_body.tool_choice.value if request_body.tool_choice else None)
         try:
             resp = run_tool_loop(engine, _messages_to_agent(messages), client_specs,
                                  session_id=sess.session_id, lang=sess.lang,
-                                 units=sess.system_unit, registry=registry)
+                                 units=sess.system_unit, registry=registry,
+                                 tool_choice=tool_choice)
+        except ToolChoiceError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {e}") from e
