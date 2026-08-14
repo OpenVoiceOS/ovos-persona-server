@@ -10,455 +10,354 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Unit tests for the A2A server adapter (ovos_persona_server/a2a.py).
+Tests for the A2A server adapter (ovos_persona_server/a2a.py) against the
+REAL a2a-sdk (no mocked SDK internals). ``a2a-sdk`` is an optional
+dependency (the ``[a2a]`` extra); if it is not installed the whole module
+is skipped rather than silently passing.
 
-Strategy: a2a-sdk is optional; we test:
-  - _A2A_AVAILABLE=False path (RuntimeError + warning log)
-  - _extract_user_text with various message shapes
-  - _agent_card content when a2a-sdk IS mocked into sys.modules
-  - OVOSPersonaAgentExecutor.execute happy path (mocked a2a types)
-  - OVOSPersonaAgentExecutor.execute error path (persona.stream raises)
-  - OVOSPersonaAgentExecutor.cancel path
-  - invalid a2a_base_url tolerance (URL is passed through unchanged)
+Covers:
+  - _A2A_AVAILABLE=False path (RuntimeError + warning log), forced by
+    simulating an absent SDK via sys.modules manipulation.
+  - _agent_card content built from a loaded persona.
+  - OVOSPersonaAgentExecutor.execute/cancel happy paths against the real
+    a2a-sdk event/task machinery.
+  - A genuine round trip through the mounted ASGI app: a real A2A client
+    sends a message over an in-process ASGI transport and gets the
+    persona's streamed response back.
 """
 
-import sys
-import types
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, patch
+import sys
+from unittest.mock import MagicMock
 
 import pytest
 
-from ovos_plugin_manager.templates.agents import MessageRole
+pytest.importorskip("a2a", reason="a2a-sdk (the [a2a] extra) is not installed")
+
+import httpx
+from fastapi import FastAPI
+
+import ovos_persona_server.a2a as a2a_mod
+from a2a.server.events import EventQueueLegacy
+
+pytestmark = pytest.mark.skipif(
+    not a2a_mod._A2A_AVAILABLE,
+    reason="a2a-sdk imported but ovos_persona_server.a2a could not wire it up",
+)
+
+
+def _fake_persona(sentences, name="test-persona", description=None):
+    persona = MagicMock()
+    persona.name = name
+    persona.config = {"description": description} if description else {}
+    persona.stream.return_value = iter(sentences)
+    return persona
 
 
 # ---------------------------------------------------------------------------
-# Helpers to build a minimal a2a-like stub module for tests
-# ---------------------------------------------------------------------------
-
-def _make_a2a_stubs():
-    """Build fake a2a modules so the module can import without the real SDK."""
-    # Build fake classes
-    class _TextPart:
-        def __init__(self, text=""):
-            self.text = text
-
-    class _Part:
-        def __init__(self, root=None):
-            self.root = root
-
-    class _Artifact:
-        def __init__(self, parts=None, artifact_id="", name=""):
-            self.parts = parts or []
-            self.artifact_id = artifact_id
-            self.name = name
-
-    class _TaskState:
-        completed = "completed"
-        canceled = "canceled"
-
-    class _TaskStatus:
-        def __init__(self, state=None):
-            self.state = state
-
-    class _TaskArtifactUpdateEvent:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    class _TaskStatusUpdateEvent:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    class _AgentCapabilities:
-        def __init__(self, streaming=False):
-            self.streaming = streaming
-
-    class _AgentSkill:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    class _AgentCard:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    class _AgentExecutor:
-        async def execute(self, context, event_queue):
-            pass
-        async def cancel(self, context, event_queue):
-            pass
-
-    class _EventQueue:
-        async def enqueue_event(self, event):
-            pass
-
-    class _RequestContext:
-        pass
-
-    class _DefaultRequestHandler:
-        def __init__(self, **kwargs):
-            pass
-
-    class _InMemoryTaskStore:
-        pass
-
-    class _A2AStarletteApplication:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-        def build(self):
-            return MagicMock()
-
-    # Build stub module tree
-    a2a = types.ModuleType("a2a")
-    a2a.server = types.ModuleType("a2a.server")
-    a2a.server.agent_execution = types.ModuleType("a2a.server.agent_execution")
-    a2a.server.agent_execution.AgentExecutor = _AgentExecutor
-    a2a.server.agent_execution.RequestContext = _RequestContext
-    a2a.server.apps = types.ModuleType("a2a.server.apps")
-    a2a.server.apps.A2AStarletteApplication = _A2AStarletteApplication
-    a2a.server.events = types.ModuleType("a2a.server.events")
-    a2a.server.events.EventQueue = _EventQueue
-    a2a.server.request_handlers = types.ModuleType("a2a.server.request_handlers")
-    a2a.server.request_handlers.DefaultRequestHandler = _DefaultRequestHandler
-    a2a.server.tasks = types.ModuleType("a2a.server.tasks")
-    a2a.server.tasks.InMemoryTaskStore = _InMemoryTaskStore
-    a2a.types = types.ModuleType("a2a.types")
-    a2a.types.AgentCard = _AgentCard
-    a2a.types.AgentCapabilities = _AgentCapabilities
-    a2a.types.AgentSkill = _AgentSkill
-    a2a.types.Artifact = _Artifact
-    a2a.types.Part = _Part
-    a2a.types.TaskArtifactUpdateEvent = _TaskArtifactUpdateEvent
-    a2a.types.TaskState = _TaskState
-    a2a.types.TaskStatus = _TaskStatus
-    a2a.types.TaskStatusUpdateEvent = _TaskStatusUpdateEvent
-    a2a.types.TextPart = _TextPart
-
-    return a2a, {
-        "TextPart": _TextPart,
-        "Part": _Part,
-        "Artifact": _Artifact,
-        "TaskState": _TaskState,
-        "TaskStatus": _TaskStatus,
-        "TaskArtifactUpdateEvent": _TaskArtifactUpdateEvent,
-        "TaskStatusUpdateEvent": _TaskStatusUpdateEvent,
-        "AgentCard": _AgentCard,
-        "AgentCapabilities": _AgentCapabilities,
-        "AgentSkill": _AgentSkill,
-        "EventQueue": _EventQueue,
-        "RequestContext": _RequestContext,
-        "AgentExecutor": _AgentExecutor,
-    }
-
-
-def _fresh_a2a_module(stubs):
-    """Import ovos_persona_server.a2a with fake a2a stubs injected."""
-    a2a_stub, classes = stubs
-    modules_to_inject = {
-        "a2a": a2a_stub,
-        "a2a.server": a2a_stub.server,
-        "a2a.server.agent_execution": a2a_stub.server.agent_execution,
-        "a2a.server.apps": a2a_stub.server.apps,
-        "a2a.server.events": a2a_stub.server.events,
-        "a2a.server.request_handlers": a2a_stub.server.request_handlers,
-        "a2a.server.tasks": a2a_stub.server.tasks,
-        "a2a.types": a2a_stub.types,
-    }
-    # Remove cached module if present
-    for key in list(sys.modules):
-        if key == "ovos_persona_server.a2a":
-            del sys.modules[key]
-
-    old_modules = {k: sys.modules.get(k) for k in modules_to_inject}
-    sys.modules.update(modules_to_inject)
-    try:
-        import importlib
-        mod = importlib.import_module("ovos_persona_server.a2a")
-        # Force reload so it picks up the stubs
-        mod = importlib.reload(mod)
-        return mod, classes
-    finally:
-        # Restore
-        for k, v in old_modules.items():
-            if v is None:
-                sys.modules.pop(k, None)
-            else:
-                sys.modules[k] = v
-
-
-# ---------------------------------------------------------------------------
-# Tests: _A2A_AVAILABLE = False path
+# _A2A_AVAILABLE = False path
 # ---------------------------------------------------------------------------
 
 class TestA2ANotAvailable:
     def test_create_a2a_application_raises_runtime_error_when_sdk_missing(self):
         """create_a2a_application must raise RuntimeError when a2a-sdk absent."""
-        # Remove any a2a stub from sys.modules
-        for key in list(sys.modules):
-            if key.startswith("a2a"):
-                del sys.modules[key]
-        # Reload the module so _A2A_AVAILABLE is False
-        for key in list(sys.modules):
-            if key == "ovos_persona_server.a2a":
-                del sys.modules[key]
-        import importlib
-        mod = importlib.import_module("ovos_persona_server.a2a")
-        mod = importlib.reload(mod)
-
-        if mod._A2A_AVAILABLE:
-            pytest.skip("a2a-sdk is actually installed in this env")
-
-        mock_persona = MagicMock()
-        mock_persona.name = "test"
-        with pytest.raises(RuntimeError, match="a2a-sdk"):
-            mod.create_a2a_application(mock_persona)
-
-    def test_missing_sdk_warning_logged(self, caplog):
-        """A warning must be emitted when a2a-sdk is absent."""
         for key in list(sys.modules):
             if key.startswith("a2a") or key == "ovos_persona_server.a2a":
                 del sys.modules[key]
-        import importlib
-        with caplog.at_level(logging.WARNING):
+        # Make the import fail regardless of what's actually installed.
+        sys.modules["a2a"] = None  # type: ignore[assignment]
+        try:
+            import importlib
             mod = importlib.import_module("ovos_persona_server.a2a")
-            mod = importlib.reload(mod)
-        if mod._A2A_AVAILABLE:
-            pytest.skip("a2a-sdk is actually installed")
-        # Warning should have been emitted
-        assert any("a2a" in r.message.lower() for r in caplog.records)
+            assert mod._A2A_AVAILABLE is False
+            with pytest.raises(RuntimeError, match="a2a-sdk"):
+                mod.create_a2a_application(_fake_persona([]))
+        finally:
+            del sys.modules["a2a"]
+            for key in list(sys.modules):
+                if key == "ovos_persona_server.a2a":
+                    del sys.modules[key]
+            import importlib
+            importlib.import_module("ovos_persona_server.a2a")
+
+    def test_missing_sdk_warning_logged(self, caplog):
+        for key in list(sys.modules):
+            if key.startswith("a2a") or key == "ovos_persona_server.a2a":
+                del sys.modules[key]
+        sys.modules["a2a"] = None  # type: ignore[assignment]
+        try:
+            import importlib
+            with caplog.at_level(logging.WARNING):
+                mod = importlib.import_module("ovos_persona_server.a2a")
+            assert mod._A2A_AVAILABLE is False
+            assert any("a2a" in r.message.lower() for r in caplog.records)
+        finally:
+            del sys.modules["a2a"]
+            for key in list(sys.modules):
+                if key == "ovos_persona_server.a2a":
+                    del sys.modules[key]
+            import importlib
+            importlib.import_module("ovos_persona_server.a2a")
 
 
 # ---------------------------------------------------------------------------
-# Tests using stub a2a modules
-# ---------------------------------------------------------------------------
-
-class TestExtractUserText:
-    def test_single_text_part(self):
-        stubs = _make_a2a_stubs()
-        mod, classes = _fresh_a2a_module(stubs)
-        TextPart = classes["TextPart"]
-        Part = classes["Part"]
-
-        msg = MagicMock()
-        msg.parts = [Part(root=TextPart(text="Hello"))]
-        result = mod.OVOSPersonaAgentExecutor._extract_user_text(msg)
-        assert result == "Hello"
-
-    def test_multiple_text_parts_joined(self):
-        stubs = _make_a2a_stubs()
-        mod, classes = _fresh_a2a_module(stubs)
-        TextPart = classes["TextPart"]
-        Part = classes["Part"]
-
-        msg = MagicMock()
-        msg.parts = [Part(root=TextPart(text="Hello")), Part(root=TextPart(text="World"))]
-        result = mod.OVOSPersonaAgentExecutor._extract_user_text(msg)
-        assert "Hello" in result and "World" in result
-
-    def test_empty_parts_returns_empty_string(self):
-        stubs = _make_a2a_stubs()
-        mod, classes = _fresh_a2a_module(stubs)
-
-        msg = MagicMock()
-        msg.parts = []
-        result = mod.OVOSPersonaAgentExecutor._extract_user_text(msg)
-        assert result == ""
-
-    def test_non_text_part_skipped(self):
-        stubs = _make_a2a_stubs()
-        mod, classes = _fresh_a2a_module(stubs)
-        Part = classes["Part"]
-
-        msg = MagicMock()
-        # Part whose root is NOT a TextPart
-        msg.parts = [Part(root=MagicMock(spec=[]))]
-        result = mod.OVOSPersonaAgentExecutor._extract_user_text(msg)
-        assert result == ""
-
-    def test_parts_is_none_handled(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        msg = MagicMock()
-        msg.parts = None
-        result = mod.OVOSPersonaAgentExecutor._extract_user_text(msg)
-        assert result == ""
-
-
-# ---------------------------------------------------------------------------
-# Agent card content tests
+# Agent card content
 # ---------------------------------------------------------------------------
 
 class TestAgentCardContent:
     def test_agent_card_name_matches_persona(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "my-persona"
-        persona.config = {}
-        card = mod._agent_card(persona, "http://localhost:8337/a2a")
+        persona = _fake_persona([], name="my-persona")
+        card = a2a_mod._agent_card(persona, "http://localhost:8337/a2a")
         assert card.name == "my-persona"
 
-    def test_agent_card_url_matches_base(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
+    def test_agent_card_url_has_trailing_slash(self):
+        """The JSON-RPC route is registered at rpc_url="/" inside an app
+        mounted at the given base path, so the real endpoint has a trailing
+        slash. A base_url without one must not be advertised verbatim —
+        Starlette 307-redirects "/a2a" -> "/a2a/", and the a2a-sdk transport
+        does not follow redirects."""
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://example.com/a2a")
+        assert card.supported_interfaces[0].url == "http://example.com/a2a/"
 
-        persona = MagicMock()
-        persona.name = "test"
-        persona.config = {}
-        card = mod._agent_card(persona, "http://example.com/a2a")
-        assert card.url == "http://example.com/a2a"
+    def test_agent_card_url_does_not_double_slash(self):
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://example.com/a2a/")
+        assert card.supported_interfaces[0].url == "http://example.com/a2a/"
+
+    def test_agent_card_capabilities_streaming_enabled(self):
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://x/")
+        assert card.capabilities.streaming is True
+
+    def test_agent_card_default_modes_are_text(self):
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://x/")
+        assert list(card.default_input_modes) == ["text"]
+        assert list(card.default_output_modes) == ["text"]
 
     def test_agent_card_description_from_config(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "test"
-        persona.config = {"description": "A very helpful bot."}
-        card = mod._agent_card(persona, "http://x")
+        persona = _fake_persona([], name="test", description="A very helpful bot.")
+        card = a2a_mod._agent_card(persona, "http://x")
         assert "helpful bot" in card.description
 
     def test_agent_card_description_fallback(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "my-bot"
-        persona.config = {}
-        card = mod._agent_card(persona, "http://x")
+        persona = _fake_persona([], name="my-bot")
+        card = a2a_mod._agent_card(persona, "http://x")
         assert "my-bot" in card.description
 
     def test_agent_card_has_skills(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "test"
-        persona.config = {}
-        card = mod._agent_card(persona, "http://x")
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://x")
         assert len(card.skills) >= 1
+        assert card.skills[0].id == "chat"
 
-    def test_agent_card_invalid_base_url_passthrough(self):
-        """An invalid URL should not raise — it is passed through to the card."""
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "test"
-        persona.config = {}
-        # Should not raise
-        card = mod._agent_card(persona, "not-a-valid-url")
-        assert card.url == "not-a-valid-url"
+    def test_agent_card_builds_without_tags(self):
+        """AgentSkill has no required `tags` on a2a-sdk>=1.1.2; verify it
+        actually validates end to end via the real pydantic/protobuf model."""
+        persona = _fake_persona([], name="test")
+        card = a2a_mod._agent_card(persona, "http://x")
+        assert card.skills[0].tags == [] or card.skills[0].tags is None or list(card.skills[0].tags) == []
 
 
 # ---------------------------------------------------------------------------
-# OVOSPersonaAgentExecutor tests
+# OVOSPersonaAgentExecutor — real EventQueue, real TaskUpdater
 # ---------------------------------------------------------------------------
 
 class TestOVOSPersonaAgentExecutor:
-    def _make_executor(self, stubs, stream_yields=None):
-        mod, classes = _fresh_a2a_module(stubs)
-        mock_persona = MagicMock()
-        mock_persona.stream.return_value = iter(stream_yields or ["Hello ", "World"])
-        executor = mod.OVOSPersonaAgentExecutor(mock_persona)
-        return executor, mod, classes, mock_persona
-
-    def _make_context(self, classes, text="Hello"):
-        TextPart = classes["TextPart"]
-        Part = classes["Part"]
+    def _make_context(self, text="Hello", task_id="task-1", context_id="ctx-1"):
         ctx = MagicMock()
-        ctx.task_id = "task-1"
-        ctx.context_id = "ctx-1"
-        ctx.message = MagicMock()
-        ctx.message.parts = [Part(root=TextPart(text=text))]
+        ctx.task_id = task_id
+        ctx.context_id = context_id
+        ctx.get_user_input.return_value = text
         return ctx
 
-    def _make_event_queue(self, classes):
-        queue = MagicMock()
-        queue.enqueue_event = AsyncMock()
-        return queue
+    def test_execute_calls_persona_stream_with_user_text(self):
+        from ovos_plugin_manager.templates.agents import MessageRole
 
-    def test_execute_calls_persona_stream(self):
-        stubs = _make_a2a_stubs()
-        executor, mod, classes, mock_persona = self._make_executor(stubs)
-        ctx = self._make_context(classes, "Tell me a story.")
-        eq = self._make_event_queue(classes)
-        asyncio.run(executor.execute(ctx, eq))
-        mock_persona.stream.assert_called_once()
-        call_args = mock_persona.stream.call_args[0][0]
-        assert call_args[0].role == MessageRole.USER
-        assert "Tell me a story." in call_args[0].content
+        persona = _fake_persona(["Hello ", "World"])
+        executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+        queue = EventQueueLegacy()
+        ctx = self._make_context("Tell me a story.")
 
-    def test_execute_enqueues_artifact_events(self):
-        stubs = _make_a2a_stubs()
-        executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["hello", "world"])
-        ctx = self._make_context(classes)
-        eq = self._make_event_queue(classes)
-        asyncio.run(executor.execute(ctx, eq))
-        # Should have 2 artifact events + 1 status event
-        assert eq.enqueue_event.call_count == 3
+        asyncio.run(executor.execute(ctx, queue))
 
-    def test_execute_final_status_is_completed(self):
-        stubs = _make_a2a_stubs()
-        executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["hi"])
-        ctx = self._make_context(classes)
-        eq = self._make_event_queue(classes)
-        asyncio.run(executor.execute(ctx, eq))
-        # Last enqueued event should be TaskStatusUpdateEvent with completed state
-        last_call_args = eq.enqueue_event.call_args_list[-1][0][0]
-        assert last_call_args.status.state == "completed"
-        assert last_call_args.final is True
+        persona.stream.assert_called_once()
+        sent = persona.stream.call_args[0][0]
+        assert sent[0].role == MessageRole.USER
+        assert "Tell me a story." in sent[0].content
+
+    def test_execute_emits_completed_task(self):
+        persona = _fake_persona(["hi"])
+        executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+        queue = EventQueueLegacy()
+        ctx = self._make_context()
+
+        asyncio.run(executor.execute(ctx, queue))
+
+        events = []
+        while not queue.queue.empty():
+            events.append(queue.queue.get_nowait())
+
+        # Task, then a WORKING status update, then an artifact update, then
+        # a COMPLETED status update.
+        assert any(
+            getattr(e, "status", None) is not None
+            and e.status.state == a2a_mod.TaskState.TASK_STATE_COMPLETED
+            for e in events
+        )
 
     def test_execute_empty_chunks_skipped(self):
-        stubs = _make_a2a_stubs()
-        executor, mod, classes, _ = self._make_executor(stubs, stream_yields=["", "hello", ""])
-        ctx = self._make_context(classes)
-        eq = self._make_event_queue(classes)
-        asyncio.run(executor.execute(ctx, eq))
-        # Only 1 artifact event (non-empty chunk) + 1 status event
-        assert eq.enqueue_event.call_count == 2
+        persona = _fake_persona(["", "hello", ""])
+        executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+        queue = EventQueueLegacy()
+        ctx = self._make_context()
 
-    def test_cancel_enqueues_canceled_status(self):
-        stubs = _make_a2a_stubs()
-        executor, mod, classes, _ = self._make_executor(stubs)
-        ctx = self._make_context(classes)
-        eq = self._make_event_queue(classes)
-        asyncio.run(executor.cancel(ctx, eq))
-        eq.enqueue_event.assert_called_once()
-        event = eq.enqueue_event.call_args[0][0]
-        assert event.status.state == "canceled"
-        assert event.final is True
+        asyncio.run(executor.execute(ctx, queue))
+
+        events = []
+        while not queue.queue.empty():
+            events.append(queue.queue.get_nowait())
+        artifact_events = [e for e in events if hasattr(e, "artifact")]
+        assert len(artifact_events) == 1
+        assert artifact_events[0].artifact.parts[0].text == "hello"
+
+    def test_cancel_emits_canceled_status(self):
+        persona = _fake_persona([])
+        executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+        queue = EventQueueLegacy()
+        ctx = self._make_context()
+
+        asyncio.run(executor.cancel(ctx, queue))
+
+        events = []
+        while not queue.queue.empty():
+            events.append(queue.queue.get_nowait())
+        assert len(events) == 1
+        assert events[0].status.state == a2a_mod.TaskState.TASK_STATE_CANCELED
 
 
 # ---------------------------------------------------------------------------
-# create_a2a_application when SDK is present
+# create_a2a_application — real round trip over an in-process ASGI transport
 # ---------------------------------------------------------------------------
 
 class TestCreateA2AApplication:
-    def test_returns_application_object(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "test-persona"
-        persona.config = {}
-        app = mod.create_a2a_application(persona, "http://localhost:9999/a2a")
+    def test_returns_mountable_starlette_app(self):
+        persona = _fake_persona([], name="test-persona")
+        app = a2a_mod.create_a2a_application(persona, "http://localhost:9999/a2a")
         assert app is not None
-
-    def test_application_has_agent_card(self):
-        stubs = _make_a2a_stubs()
-        mod, _ = _fresh_a2a_module(stubs)
-
-        persona = MagicMock()
-        persona.name = "test-persona"
-        persona.config = {}
-        app = mod.create_a2a_application(persona, "http://localhost:9999/a2a")
         assert hasattr(app, "agent_card")
         assert app.agent_card.name == "test-persona"
+
+    def test_real_round_trip_send_message(self):
+        """Send a real A2A JSON-RPC message/send request through the mounted
+        app via an in-process ASGI transport and get the persona's streamed
+        response back — not just an import/shape check.
+
+        No ``follow_redirects=True`` here: the a2a-sdk's own transport does
+        not follow redirects either, so if the agent card advertised a URL
+        Starlette would 307 on, this test must fail the same way a real
+        remote client would."""
+        from a2a.client import ClientConfig, create_client
+        from a2a.types import Message, Part, Role, SendMessageRequest
+
+        persona = _fake_persona(["Hello ", "there!"], name="roundtrip-persona")
+        a2a_app = a2a_mod.create_a2a_application(persona, "http://testserver/a2a")
+
+        fastapi_app = FastAPI()
+        fastapi_app.mount("/a2a", a2a_app)
+
+        async def _run():
+            transport = httpx.ASGITransport(app=fastapi_app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as hc:
+                client = await create_client(
+                    a2a_app.agent_card,
+                    client_config=ClientConfig(httpx_client=hc, streaming=False),
+                )
+                msg = Message(
+                    role=Role.ROLE_USER,
+                    parts=[Part(text="hi there")],
+                    message_id="m1",
+                )
+                req = SendMessageRequest(message=msg)
+                results = []
+                async for event in client.send_message(req):
+                    results.append(event)
+                return results
+
+        events = asyncio.run(_run())
+
+        assert len(events) == 1
+        task = events[0].task
+        assert task.status.state == a2a_mod.TaskState.TASK_STATE_COMPLETED
+        assert len(task.artifacts) == 1
+        text = "".join(p.text for p in task.artifacts[0].parts)
+        assert text == "Hello there!"
+
+        persona.stream.assert_called_once()
+        sent = persona.stream.call_args[0][0]
+        assert sent[0].content == "hi there"
+
+    def test_agent_card_available_at_both_well_known_paths(self):
+        """The 1.x well-known path and the pre-1.0 (0.3.x) one both serve
+        the card, so already-deployed 0.3.x clients can still discover this
+        agent even though a fresh install cannot reach the 0.3.x SDK."""
+        persona = _fake_persona([], name="discoverable-persona")
+        a2a_app = a2a_mod.create_a2a_application(persona, "http://testserver/a2a")
+
+        fastapi_app = FastAPI()
+        fastapi_app.mount("/a2a", a2a_app)
+
+        async def _run():
+            transport = httpx.ASGITransport(app=fastapi_app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as hc:
+                new_path = await hc.get("/a2a/.well-known/agent-card.json")
+                old_path = await hc.get("/a2a/.well-known/agent.json")
+                return new_path, old_path
+
+        new_resp, old_resp = asyncio.run(_run())
+        assert new_resp.status_code == 200
+        assert old_resp.status_code == 200
+        assert new_resp.json()["name"] == "discoverable-persona"
+        assert old_resp.json()["name"] == "discoverable-persona"
+
+    def test_v0_3_message_send_method_name_accepted(self):
+        """enable_v0_3_compat=True means a 0.3.x client sending the old
+        ``message/send`` JSON-RPC method name is served, not rejected with
+        -32009/-32601 the way it would be against a bare 1.x route."""
+        persona = _fake_persona(["hi"], name="compat-persona")
+        a2a_app = a2a_mod.create_a2a_application(persona, "http://testserver/a2a")
+
+        fastapi_app = FastAPI()
+        fastapi_app.mount("/a2a", a2a_app)
+
+        async def _run():
+            transport = httpx.ASGITransport(app=fastapi_app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as hc:
+                return await hc.post(
+                    "/a2a/",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": "1",
+                        "method": "message/send",
+                        "params": {
+                            "message": {
+                                "role": "user",
+                                "parts": [{"kind": "text", "text": "hi there"}],
+                                "messageId": "m1",
+                            }
+                        },
+                    },
+                )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "error" not in body, body

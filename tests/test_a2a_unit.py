@@ -1,116 +1,38 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
-Unit tests for the A2A adapter (ovos_persona_server/a2a.py).
-
-All A2A SDK internals are mocked — no live server, no network needed.
+Focused unit tests for ``OVOSPersonaAgentExecutor`` internals, isolating the
+persona-facing behaviour (stream forwarding, chunk batching, artifact
+append/last_chunk flags) from the A2A wire protocol. Unlike
+``tests/test_a2a_server.py`` this file mocks the ``EventQueue`` (to assert on
+individual enqueued events without draining an asyncio.Queue) but always
+imports the REAL a2a-sdk types (``a2a.types.Part``/``TaskState``/etc.) — no
+SDK internals are faked, so a shape change in the SDK breaks these tests
+immediately instead of being silently absorbed by a hand-rolled stub.
 """
 
-import asyncio
 from typing import Any, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole
 
+pytest.importorskip("a2a", reason="a2a-sdk (the [a2a] extra) is not installed")
 
-# ---------------------------------------------------------------------------
-# Fake A2A types (mirrors real SDK field names)
-# ---------------------------------------------------------------------------
+import ovos_persona_server.a2a as a2a_mod
 
-class _FakeTextPart:
-    def __init__(self, text: str = "", **kwargs: Any) -> None:
-        self.text = text
-
-
-class _FakePart:
-    def __init__(self, root: Any = None, **kwargs: Any) -> None:
-        self.root = root
-
-
-class _FakeMessage:
-    def __init__(self, text: str = "", parts: List[Any] = None, **kwargs: Any) -> None:
-        if parts is not None:
-            self.parts = parts
-        else:
-            self.parts = [_FakePart(root=_FakeTextPart(text))]
-
-
-class _FakeAgentCard:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeAgentCapabilities:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeAgentSkill:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeArtifact:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeTaskArtifactUpdateEvent:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeTaskStatusUpdateEvent:
-    def __init__(self, **kwargs: Any) -> None:
-        self.__dict__.update(kwargs)
-
-
-class _FakeTaskState:
-    completed = "completed"
-    canceled = "canceled"
-
-
-class _FakeTaskStatus:
-    def __init__(self, state: str = "", **kwargs: Any) -> None:
-        self.state = state
-
-
-class _FakeRequestContext:
-    def __init__(self, message: Any, task_id: str = "t1", context_id: str = "c1") -> None:
-        self.message = message
-        self.task_id = task_id
-        self.context_id = context_id
-
-
-class _FakeEventQueue:
-    def __init__(self) -> None:
-        self.events: List[Any] = []
-
-    async def enqueue_event(self, event: Any) -> None:
-        self.events.append(event)
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture()
-def _patch_a2a(monkeypatch):
-    """Patch a2a SDK symbols in the a2a module."""
-    import ovos_persona_server.a2a as a2a_mod
-
-    monkeypatch.setattr(a2a_mod, "_A2A_AVAILABLE", True)
-    monkeypatch.setattr(a2a_mod, "AgentCard", _FakeAgentCard)
-    monkeypatch.setattr(a2a_mod, "AgentCapabilities", _FakeAgentCapabilities)
-    monkeypatch.setattr(a2a_mod, "AgentSkill", _FakeAgentSkill)
-    monkeypatch.setattr(a2a_mod, "Artifact", _FakeArtifact)
-    monkeypatch.setattr(a2a_mod, "Part", _FakePart)
-    monkeypatch.setattr(a2a_mod, "TextPart", _FakeTextPart)
-    monkeypatch.setattr(a2a_mod, "TaskArtifactUpdateEvent", _FakeTaskArtifactUpdateEvent)
-    monkeypatch.setattr(a2a_mod, "TaskStatusUpdateEvent", _FakeTaskStatusUpdateEvent)
-    monkeypatch.setattr(a2a_mod, "TaskState", _FakeTaskState)
-    monkeypatch.setattr(a2a_mod, "TaskStatus", _FakeTaskStatus)
-
-    yield a2a_mod
+pytestmark = pytest.mark.skipif(
+    not a2a_mod._A2A_AVAILABLE,
+    reason="a2a-sdk imported but ovos_persona_server.a2a could not wire it up",
+)
 
 
 def _fake_persona(sentences: List[str]) -> MagicMock:
@@ -122,55 +44,38 @@ def _fake_persona(sentences: List[str]) -> MagicMock:
     return persona
 
 
-# ---------------------------------------------------------------------------
-# _extract_user_text
-# ---------------------------------------------------------------------------
-
-def test_extract_user_text_single_part(_patch_a2a) -> None:
-    a2a_mod = _patch_a2a
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
-    msg = _FakeMessage("hello world")
-    result = OVOSPersonaAgentExecutor._extract_user_text(msg)
-    assert result == "hello world"
+def _fake_context(text: str = "hi", task_id: str = "t1", context_id: str = "c1") -> Any:
+    ctx = MagicMock()
+    ctx.task_id = task_id
+    ctx.context_id = context_id
+    ctx.get_user_input.return_value = text
+    return ctx
 
 
-def test_extract_user_text_multi_part(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
-    msg = _FakeMessage()
-    msg.parts = [
-        _FakePart(root=_FakeTextPart("hello")),
-        _FakePart(root=_FakeTextPart("world")),
-    ]
-    result = OVOSPersonaAgentExecutor._extract_user_text(msg)
-    assert result == "hello world"
-
-
-def test_extract_user_text_no_parts(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
-    msg = MagicMock()
-    msg.parts = []
-    assert OVOSPersonaAgentExecutor._extract_user_text(msg) == ""
+def _fake_queue() -> MagicMock:
+    queue = MagicMock()
+    queue.enqueue_event = AsyncMock()
+    return queue
 
 
 # ---------------------------------------------------------------------------
 # _agent_card
 # ---------------------------------------------------------------------------
 
-def test_agent_card_uses_persona_name(_patch_a2a) -> None:
-    a2a_mod = _patch_a2a
+def test_agent_card_uses_persona_name() -> None:
     persona = _fake_persona([])
     persona.name = "my-persona"
 
     card = a2a_mod._agent_card(persona, "http://host:8337/a2a")
     assert card.name == "my-persona"
-    assert card.url == "http://host:8337/a2a"
+    # Trailing slash: the JSON-RPC route lives at rpc_url="/" inside the app
+    # mounted at this base path, so the real endpoint is ".../a2a/", not
+    # ".../a2a" (Starlette 307s the latter and the a2a-sdk transport does
+    # not follow redirects).
+    assert card.supported_interfaces[0].url == "http://host:8337/a2a/"
 
 
-def test_agent_card_uses_config_description(_patch_a2a) -> None:
-    a2a_mod = _patch_a2a
+def test_agent_card_uses_config_description() -> None:
     persona = _fake_persona([])
     persona.config = {"description": "A custom description"}
 
@@ -178,8 +83,7 @@ def test_agent_card_uses_config_description(_patch_a2a) -> None:
     assert card.description == "A custom description"
 
 
-def test_agent_card_fallback_description(_patch_a2a) -> None:
-    a2a_mod = _patch_a2a
+def test_agent_card_fallback_description() -> None:
     persona = _fake_persona([])
     persona.name = "mypersona"
     persona.config = {}
@@ -193,65 +97,73 @@ def test_agent_card_fallback_description(_patch_a2a) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_execute_emits_artifact_and_status(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
+async def test_execute_emits_task_then_status_updates_then_completes() -> None:
     persona = _fake_persona(["Hello", "there"])
-    executor = OVOSPersonaAgentExecutor(persona)
-    queue = _FakeEventQueue()
-    ctx = _FakeRequestContext(_FakeMessage("hi"))
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("hi")
 
     await executor.execute(ctx, queue)
 
-    artifact_events = [e for e in queue.events if isinstance(e, _FakeTaskArtifactUpdateEvent)]
-    status_events = [e for e in queue.events if isinstance(e, _FakeTaskStatusUpdateEvent)]
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
 
+    # Task, WORKING status, one artifact-update event per chunk (both chunks
+    # belong to the same artifact_id="response", append=False then True),
+    # then a COMPLETED status.
+    task_events = [e for e in events if isinstance(e, a2a_mod.Task)]
+    artifact_events = [e for e in events if hasattr(e, "artifact")]
+    status_events = [
+        e for e in events if hasattr(e, "status") and not isinstance(e, a2a_mod.Task)
+    ]
+
+    assert len(task_events) == 1
     assert len(artifact_events) == 2
-    assert len(status_events) == 1
-    assert status_events[0].status.state == _FakeTaskState.completed
-    assert status_events[0].final is True
+    assert {a.artifact.artifact_id for a in artifact_events} == {"response"}
+    assert status_events[-1].status.state == a2a_mod.TaskState.TASK_STATE_COMPLETED
 
 
 @pytest.mark.asyncio
-async def test_execute_skips_empty_chunks(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
+async def test_execute_skips_empty_chunks() -> None:
     persona = _fake_persona(["Hello", "", "world"])
-    executor = OVOSPersonaAgentExecutor(persona)
-    queue = _FakeEventQueue()
-    ctx = _FakeRequestContext(_FakeMessage("hi"))
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("hi")
 
     await executor.execute(ctx, queue)
 
-    artifact_events = [e for e in queue.events if isinstance(e, _FakeTaskArtifactUpdateEvent)]
-    assert len(artifact_events) == 2  # empty chunk skipped
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
+    artifact_events = [e for e in events if hasattr(e, "artifact")]
+    # Both non-empty chunks are batched into the same artifact_id="response"
+    # artifact (append=False then append=True) — still 2 update events.
+    assert len(artifact_events) == 2
+    assert artifact_events[0].append is False
+    assert artifact_events[1].append is True
 
 
 @pytest.mark.asyncio
-async def test_execute_last_chunk_flag(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
+async def test_execute_last_chunk_flag() -> None:
     persona = _fake_persona(["A", "B", "C"])
-    executor = OVOSPersonaAgentExecutor(persona)
-    queue = _FakeEventQueue()
-    ctx = _FakeRequestContext(_FakeMessage("hi"))
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("hi")
 
     await executor.execute(ctx, queue)
 
-    artifact_events = [e for e in queue.events if isinstance(e, _FakeTaskArtifactUpdateEvent)]
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
+    artifact_events = [e for e in events if hasattr(e, "artifact")]
     assert artifact_events[-1].last_chunk is True
     for ev in artifact_events[:-1]:
         assert ev.last_chunk is False
 
 
 @pytest.mark.asyncio
-async def test_execute_forwards_user_text_to_persona(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
+async def test_execute_forwards_user_text_to_persona() -> None:
+    from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole
 
     persona = _fake_persona(["ok"])
-    executor = OVOSPersonaAgentExecutor(persona)
-    queue = _FakeEventQueue()
-    ctx = _FakeRequestContext(_FakeMessage("tell me a joke"))
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("tell me a joke")
 
     await executor.execute(ctx, queue)
 
@@ -269,21 +181,17 @@ async def test_execute_forwards_user_text_to_persona(_patch_a2a) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_cancel_emits_canceled_status(_patch_a2a) -> None:
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
+async def test_cancel_emits_canceled_status() -> None:
     persona = _fake_persona([])
-    executor = OVOSPersonaAgentExecutor(persona)
-    queue = _FakeEventQueue()
-    ctx = _FakeRequestContext(_FakeMessage(""))
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("")
 
     await executor.cancel(ctx, queue)
 
-    assert len(queue.events) == 1
-    ev = queue.events[0]
-    assert isinstance(ev, _FakeTaskStatusUpdateEvent)
-    assert ev.status.state == _FakeTaskState.canceled
-    assert ev.final is True
+    queue.enqueue_event.assert_called_once()
+    ev = queue.enqueue_event.call_args[0][0]
+    assert ev.status.state == a2a_mod.TaskState.TASK_STATE_CANCELED
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +199,6 @@ async def test_cancel_emits_canceled_status(_patch_a2a) -> None:
 # ---------------------------------------------------------------------------
 
 def test_create_a2a_application_raises_without_sdk(monkeypatch) -> None:
-    import ovos_persona_server.a2a as a2a_mod
     monkeypatch.setattr(a2a_mod, "_A2A_AVAILABLE", False)
 
     persona = _fake_persona([])
@@ -299,23 +206,13 @@ def test_create_a2a_application_raises_without_sdk(monkeypatch) -> None:
         a2a_mod.create_a2a_application(persona)
 
 
-def test_create_a2a_application_returns_starlette_app(_patch_a2a, monkeypatch) -> None:
-    a2a_mod = _patch_a2a
-
-    class _FakeA2AApp:
-        def __init__(self, **kwargs: Any) -> None:
-            pass
-
-        def build(self) -> MagicMock:
-            return MagicMock()
-
-    monkeypatch.setattr(a2a_mod, "A2AStarletteApplication", _FakeA2AApp)
-    monkeypatch.setattr(a2a_mod, "DefaultRequestHandler", MagicMock())
-    monkeypatch.setattr(a2a_mod, "InMemoryTaskStore", MagicMock())
-
+def test_create_a2a_application_returns_starlette_app() -> None:
     persona = _fake_persona([])
+    persona.name = "test-persona"
+
     app = a2a_mod.create_a2a_application(persona, "http://host/a2a")
-    assert isinstance(app, _FakeA2AApp)
+    assert isinstance(app, a2a_mod.Starlette)
+    assert app.agent_card.name == "test-persona"
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +221,8 @@ def test_create_a2a_application_returns_starlette_app(_patch_a2a, monkeypatch) -
 # ``context_id`` is the A2A conversation identifier — per the protocol it is the
 # id of the "contextual collection of interactions (tasks and messages)", so it
 # is stable across the turns of one conversation and distinct between callers.
+# Ported from the pre-1.x mocked test file onto the real ``EventQueueLegacy``
+# and a ``RequestContext``-shaped mock (``get_user_input``/``context_id``).
 # ---------------------------------------------------------------------------
 
 class _RecordingMemory:
@@ -349,49 +248,49 @@ def _transparent_memory(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_execute_keys_memory_on_context_id(_patch_a2a, _transparent_memory) -> None:
+async def test_execute_keys_memory_on_context_id(_transparent_memory) -> None:
     """Two conversations must not share a memory bucket."""
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
     memory = _RecordingMemory()
     persona = _fake_persona(["ok"])
     persona.memory = memory
-    executor = OVOSPersonaAgentExecutor(persona)
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
 
-    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
-                                               context_id="conv-a"), _FakeEventQueue())
+    await executor.execute(
+        _fake_context("the code is hunter2", context_id="conv-a"), _fake_queue()
+    )
     persona.stream.return_value = iter(["ok"])
-    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
-                                               context_id="conv-b"), _FakeEventQueue())
+    await executor.execute(
+        _fake_context("what is the code", context_id="conv-b"), _fake_queue()
+    )
 
     assert set(memory.history) == {"conv-a", "conv-b"}
     assert "hunter2" not in str(memory.history["conv-b"])
 
 
 @pytest.mark.asyncio
-async def test_execute_reuses_bucket_within_one_conversation(_patch_a2a,
-                                                             _transparent_memory) -> None:
+async def test_execute_reuses_bucket_within_one_conversation(_transparent_memory) -> None:
     """Same context_id across turns keeps one bucket, so memory still works."""
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
     memory = _RecordingMemory()
     persona = _fake_persona(["ok"])
     persona.memory = memory
-    executor = OVOSPersonaAgentExecutor(persona)
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
 
-    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
-                                               context_id="conv-a"), _FakeEventQueue())
+    await executor.execute(
+        _fake_context("the code is hunter2", context_id="conv-a"), _fake_queue()
+    )
     persona.stream.return_value = iter(["ok"])
-    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
-                                               context_id="conv-a"), _FakeEventQueue())
+    await executor.execute(
+        _fake_context("what is the code", context_id="conv-a"), _fake_queue()
+    )
 
     assert list(memory.history) == ["conv-a"]
     # the second turn was built on top of the first, not on an empty bucket
     assert "hunter2" in str(memory.history["conv-a"])
 
+
 @pytest.mark.asyncio
 async def test_a_client_that_sends_no_context_id_gets_a_fresh_bucket(
-        _patch_a2a, _transparent_memory) -> None:
+        _transparent_memory) -> None:
     """A caller that does not echo contextId starts a new conversation each time.
 
     The a2a-sdk mints a fresh identifier for a request that carries none, so
@@ -402,20 +301,18 @@ async def test_a_client_that_sends_no_context_id_gets_a_fresh_bucket(
     shared bucket, which is the leak the transparent mode is documented to
     avoid.
     """
-    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
-
     memory = _RecordingMemory()
     persona = _fake_persona(["ok"])
     persona.memory = memory
-    executor = OVOSPersonaAgentExecutor(persona)
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
 
-    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
-                                               context_id="generated-1"),
-                           _FakeEventQueue())
+    await executor.execute(
+        _fake_context("the code is hunter2", context_id="generated-1"), _fake_queue()
+    )
     persona.stream.return_value = iter(["ok"])
-    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
-                                               context_id="generated-2"),
-                           _FakeEventQueue())
+    await executor.execute(
+        _fake_context("what is the code", context_id="generated-2"), _fake_queue()
+    )
 
     assert sorted(memory.history) == ["generated-1", "generated-2"]
     assert "hunter2" not in str(memory.history["generated-2"])

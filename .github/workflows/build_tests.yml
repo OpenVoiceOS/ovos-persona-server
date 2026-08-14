@@ -9,7 +9,7 @@ jobs:
     uses: OpenVoiceOS/gh-automations/.github/workflows/build-tests.yml@dev
     secrets: inherit
     with:
-      install_extras: "dev,mcp"
+      install_extras: "dev,mcp,a2a"
       # the OpenAI chat surface honors `tools` via the tool contract (ToolCall,
       # MessageRole.TOOL), released in ovos-plugin-manager>=2.7.0a1 (pinned in pyproject).
       # e2e tests need heavy real plugins (gguf model download, chromadb/qdrant)
