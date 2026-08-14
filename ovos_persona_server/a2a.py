@@ -35,7 +35,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from ovos_persona_server.persona import run_stream
+from ovos_persona_server.persona import run_stream, PersonaNoAnswerError
 
 LOG = logging.getLogger(__name__)
 
@@ -175,10 +175,6 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
         # single task (that is ``task_id``). It is the caller identity this
         # protocol carries, so in CHAT_MEMORY=transparent mode it keys memory.
         # Persona.stream is synchronous — run in a thread pool
-        chunks = await asyncio.to_thread(
-            lambda: list(run_stream(self._persona, messages,
-                                    session_id=context.context_id))
-        )
 
         # The framework requires a Task object to exist before any
         # TaskStatusUpdateEvent/TaskArtifactUpdateEvent referencing it.
@@ -196,6 +192,20 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
             context_id=context.context_id,
         )
         await updater.start_work()
+
+        try:
+            chunks = await asyncio.to_thread(
+                lambda: list(run_stream(self._persona, messages,
+                                        session_id=context.context_id))
+            )
+        except PersonaNoAnswerError as exc:
+            # No handler produced an answer — terminate the task cleanly with
+            # a failed status carrying the reason, rather than letting the
+            # exception escape execute() and leave the task stuck non-terminal.
+            await updater.failed(
+                message=updater.new_agent_message([Part(text=str(exc))])
+            )
+            return
 
         # All chunks belong to the same streamed artifact: the first chunk
         # creates it (append=False), subsequent chunks append to it.

@@ -20,7 +20,9 @@ from pydantic import BaseModel, Field
 
 
 from ovos_persona_server.embeddings import get_embeddings_backend, embed_texts
-from ovos_persona_server.persona import get_default_persona, resolve_persona, available_personas
+from ovos_persona_server.persona import (
+    get_default_persona, resolve_persona, available_personas, run_chat, run_stream, PersonaNoAnswerError,
+)
 from ovos_persona_server.schemas.ollama import (
     OllamaChatResponse,
     OllamaTagsResponse,
@@ -125,7 +127,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
     if not stream:
         try:
             start_time: float = time.time()
-            content: str = persona.chat(persona_messages, sess=sess)
+            content: str = run_chat(persona, persona_messages, sess=sess)
             end_time: float = time.time()
             total_duration = int((end_time - start_time) * 1_000_000_000)  # Nanoseconds
 
@@ -142,6 +144,8 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
                 eval_duration=eval_duration,  # Placeholder
                 done_reason=done_reason
             ).model_dump(exclude_unset=True))
+        except PersonaNoAnswerError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {e}") from e
@@ -157,7 +161,7 @@ async def chat_ollama(request_body: OllamaChatRequest, persona: Persona = Depend
         streaming_eval_duration: int = 0
 
         try:
-            for chunk in persona.stream(persona_messages, sess=sess):
+            for chunk in run_stream(persona, persona_messages, sess=sess):
                 if chunk:
                     # Increment eval_count for each chunk (approximate)
                     streaming_eval_count += len(chunk.split())  # Simple token count approximation
@@ -251,8 +255,8 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
     if not stream:
         try:
             start_time: float = time.time()
-            # Use persona.chat for non-streaming generation
-            content: str = persona.chat(messages, sess=sess)
+            # Use run_chat for non-streaming generation
+            content: str = run_chat(persona, messages, sess=sess)
             end_time: float = time.time()
             total_duration = int((end_time - start_time) * 1_000_000_000)
 
@@ -271,6 +275,8 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
                 "eval_duration": eval_duration,
                 "done_reason": done_reason,
             })
+        except PersonaNoAnswerError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona generation failed: {e}") from e
@@ -286,8 +292,8 @@ async def generate_ollama(request_body: OllamaGenerateRequest, persona: Persona 
         streaming_eval_duration: int = 0
 
         try:
-            # Use persona.stream for streaming generation
-            for chunk in persona.stream(messages, sess=sess):
+            # Use run_stream for streaming generation
+            for chunk in run_stream(persona, messages, sess=sess):
                 if chunk:
                     # Increment eval_count for each chunk (approximate)
                     streaming_eval_count += len(chunk.split())  # Simple token count approximation

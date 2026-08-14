@@ -3,13 +3,13 @@
 import json
 from typing import AsyncGenerator, List, Optional, Union
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream
+from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, PersonaNoAnswerError
 
 tgi_router = APIRouter(prefix="/tgi", tags=["huggingface-tgi"])
 
@@ -61,12 +61,23 @@ class TGIEmbedRequest(BaseModel):
 
 
 def _generate(request: TGIRequest, persona: Persona) -> JSONResponse:
-    """Run a non-streaming generation and build the TGI response."""
+    """Run a non-streaming generation and build the TGI response.
+
+    Raises:
+        HTTPException: 422 if no handler in the persona's chain produced an
+            answer; 500 on any other persona chat failure.
+    """
     messages = [{"role": "user", "content": request.inputs}]
-    text = run_chat(persona, messages)
+    try:
+        text = run_chat(persona, messages)
+    except PersonaNoAnswerError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Persona chat failed: {exc}") from exc
     return JSONResponse(TGIResponse(
-        generated_text=text or "",
-        details=TGIDetails(finish_reason="eos_token", generated_tokens=len((text or "").split())),
+        generated_text=text,
+        details=TGIDetails(finish_reason="eos_token", generated_tokens=len(text.split())),
     ).model_dump())
 
 

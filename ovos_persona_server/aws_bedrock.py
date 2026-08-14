@@ -9,13 +9,15 @@ import time
 import zlib
 from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Depends, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
+from ovos_persona_server.persona import (
+    get_default_persona, run_chat, run_stream, resolve_persona, PersonaNoAnswerError,
+)
 
 bedrock_router = APIRouter(prefix="/bedrock/model", tags=["aws-bedrock"])
 
@@ -274,8 +276,11 @@ async def invoke(
         vectors = embed_texts(embedder, texts)
         return JSONResponse(_build_embedding_response(vectors, model_id, texts))
     messages = _extract_messages(body, model_id)
-    text = run_chat(persona, messages)
-    return JSONResponse(_build_response(text or "", model_id, body))
+    try:
+        text = run_chat(persona, messages)
+    except PersonaNoAnswerError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return JSONResponse(_build_response(text, model_id, body))
 
 
 @bedrock_router.post("/{model_id}/invoke-with-response-stream", response_model=None)
@@ -370,18 +375,21 @@ async def converse(
         text = " ".join(b.text for b in m.content)
         messages.append({"role": m.role, "content": text})
 
-    text = run_chat(persona, messages)
+    try:
+        text = run_chat(persona, messages)
+    except PersonaNoAnswerError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return JSONResponse({
         "output": {
             "message": {
                 "role": "assistant",
-                "content": [{"text": text or ""}],
+                "content": [{"text": text}],
             }
         },
         "stopReason": "end_turn",
         "usage": {
             "inputTokens": sum(len(m["content"].split()) for m in messages),
-            "outputTokens": len((text or "").split()),
-            "totalTokens": sum(len(m["content"].split()) for m in messages) + len((text or "").split()),
+            "outputTokens": len(text.split()),
+            "totalTokens": sum(len(m["content"].split()) for m in messages) + len(text.split()),
         },
     })

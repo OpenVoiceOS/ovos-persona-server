@@ -12,7 +12,9 @@ from ovos_persona import Persona
 from pydantic import BaseModel, Field
 
 from ovos_persona_server.embeddings import embed_texts, get_embeddings_backend
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
+from ovos_persona_server.persona import (
+    get_default_persona, run_chat, run_stream, resolve_persona, PersonaNoAnswerError,
+)
 
 cohere_router = APIRouter(prefix="/cohere/v1", tags=["cohere"])
 
@@ -90,6 +92,8 @@ async def cohere_chat(
     if not request.stream:
         try:
             text = run_chat(persona, messages)
+        except PersonaNoAnswerError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=str(exc)) from exc
@@ -155,6 +159,8 @@ async def cohere_generate(
     if not request.stream:
         try:
             text = run_chat(persona, messages)
+        except PersonaNoAnswerError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=str(exc)) from exc
