@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.1a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.0a1...0.17.1a1)
+
+**Merged pull requests:**
+
+- fix: key transparent memory on the caller identity these surfaces already receive [\#86](https://github.com/OpenVoiceOS/ovos-persona-server/pull/86) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.17.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.0a1) (2026-08-13)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.16.0a1...0.17.0a1)
