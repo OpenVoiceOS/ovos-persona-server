@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.2a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.1a1...0.17.2a1)
+
+**Merged pull requests:**
+
+- fix: migrate A2A adapter to a2a-sdk\>=1.1.2 so it actually loads [\#88](https://github.com/OpenVoiceOS/ovos-persona-server/pull/88) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.17.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.1a1) (2026-08-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.0a1...0.17.1a1)
