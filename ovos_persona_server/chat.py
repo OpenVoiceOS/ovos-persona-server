@@ -387,7 +387,7 @@ async def create_completion(
 
     if not stream:
         try:
-            content: str = run_chat(persona, messages)
+            content: str = run_chat(persona, messages, session_id=request_body.user)
 
             prompt_tokens: int = sum(len(msg.get("content", "").split()) for msg in messages) if messages else 0
             completion_tokens: int = len(content.split())
@@ -423,7 +423,7 @@ async def create_completion(
         """Yield SSE data events in legacy OpenAI text-completion format."""
         current_completion_tokens: int = 0
         try:
-            for chunk in run_stream(persona, messages):
+            for chunk in run_stream(persona, messages, session_id=request_body.user):
                 if chunk:
                     current_completion_tokens += len(chunk.split())
                     # Legacy completion stream format

@@ -316,3 +316,106 @@ def test_create_a2a_application_returns_starlette_app(_patch_a2a, monkeypatch) -
     persona = _fake_persona([])
     app = a2a_mod.create_a2a_application(persona, "http://host/a2a")
     assert isinstance(app, _FakeA2AApp)
+
+
+# ---------------------------------------------------------------------------
+# memory session key (CHAT_MEMORY=transparent)
+#
+# ``context_id`` is the A2A conversation identifier — per the protocol it is the
+# id of the "contextual collection of interactions (tasks and messages)", so it
+# is stable across the turns of one conversation and distinct between callers.
+# ---------------------------------------------------------------------------
+
+class _RecordingMemory:
+    """Memory plugin double that records which session key it was asked for."""
+
+    def __init__(self) -> None:
+        self.history: dict = {}
+        self.keys: List[str] = []
+
+    def build_conversation_context(self, utterance, session_id):
+        self.keys.append(session_id)
+        return list(self.history.get(session_id, [])) + [utterance]
+
+    def update_history(self, new_messages, session_id):
+        self.keys.append(session_id)
+        self.history.setdefault(session_id, []).extend(new_messages)
+
+
+@pytest.fixture()
+def _transparent_memory(monkeypatch):
+    from ovos_persona_server import persona as persona_mod
+    monkeypatch.setattr(persona_mod.settings, "chat_memory", "transparent")
+
+
+@pytest.mark.asyncio
+async def test_execute_keys_memory_on_context_id(_patch_a2a, _transparent_memory) -> None:
+    """Two conversations must not share a memory bucket."""
+    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
+
+    memory = _RecordingMemory()
+    persona = _fake_persona(["ok"])
+    persona.memory = memory
+    executor = OVOSPersonaAgentExecutor(persona)
+
+    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
+                                               context_id="conv-a"), _FakeEventQueue())
+    persona.stream.return_value = iter(["ok"])
+    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
+                                               context_id="conv-b"), _FakeEventQueue())
+
+    assert set(memory.history) == {"conv-a", "conv-b"}
+    assert "hunter2" not in str(memory.history["conv-b"])
+
+
+@pytest.mark.asyncio
+async def test_execute_reuses_bucket_within_one_conversation(_patch_a2a,
+                                                             _transparent_memory) -> None:
+    """Same context_id across turns keeps one bucket, so memory still works."""
+    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
+
+    memory = _RecordingMemory()
+    persona = _fake_persona(["ok"])
+    persona.memory = memory
+    executor = OVOSPersonaAgentExecutor(persona)
+
+    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
+                                               context_id="conv-a"), _FakeEventQueue())
+    persona.stream.return_value = iter(["ok"])
+    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
+                                               context_id="conv-a"), _FakeEventQueue())
+
+    assert list(memory.history) == ["conv-a"]
+    # the second turn was built on top of the first, not on an empty bucket
+    assert "hunter2" in str(memory.history["conv-a"])
+
+@pytest.mark.asyncio
+async def test_a_client_that_sends_no_context_id_gets_a_fresh_bucket(
+        _patch_a2a, _transparent_memory) -> None:
+    """A caller that does not echo contextId starts a new conversation each time.
+
+    The a2a-sdk mints a fresh identifier for a request that carries none, so
+    there is nothing stable to key history on. That is the anonymous rule --
+    an unidentified caller is independent, not merged into a shared bucket --
+    but it means continuity on this surface requires the client to echo the id
+    back. Pinned deliberately so a later change does not "fix" this into one
+    shared bucket, which is the leak the transparent mode is documented to
+    avoid.
+    """
+    from ovos_persona_server.a2a import OVOSPersonaAgentExecutor
+
+    memory = _RecordingMemory()
+    persona = _fake_persona(["ok"])
+    persona.memory = memory
+    executor = OVOSPersonaAgentExecutor(persona)
+
+    await executor.execute(_FakeRequestContext(_FakeMessage("the code is hunter2"),
+                                               context_id="generated-1"),
+                           _FakeEventQueue())
+    persona.stream.return_value = iter(["ok"])
+    await executor.execute(_FakeRequestContext(_FakeMessage("what is the code"),
+                                               context_id="generated-2"),
+                           _FakeEventQueue())
+
+    assert sorted(memory.history) == ["generated-1", "generated-2"]
+    assert "hunter2" not in str(memory.history["generated-2"])

@@ -159,9 +159,14 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
         user_text = self._extract_user_text(context.message)
         messages = [{"role": "user", "content": user_text}]
 
+        # ``context_id`` is the A2A conversation identifier — the id of the
+        # "contextual collection of interactions (tasks and messages)", not of a
+        # single task (that is ``task_id``). It is the caller identity this
+        # protocol carries, so in CHAT_MEMORY=transparent mode it keys memory.
         # Persona.stream is synchronous — run in a thread pool
         chunks = await asyncio.to_thread(
-            lambda: list(run_stream(self._persona, messages))
+            lambda: list(run_stream(self._persona, messages,
+                                    session_id=context.context_id))
         )
 
         for i, chunk in enumerate(chunks):

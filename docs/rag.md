@@ -167,6 +167,15 @@ is used as the memory session key, so distinct callers keep separate histories; 
 it, a single default session is used. Even so, `transparent` is intended for the
 hosted-agent case — keep it `off` for general multi-tenant backends.
 
+The legacy `/v1/completions` surface reads the same `user` field. On the A2A
+surface the key is `contextId`, the conversation identifier the protocol already
+carries. A client that echoes the `contextId` it got back keeps its history; one
+that sends none is given a fresh identifier per request by the a2a-sdk, so every
+request starts a new conversation. That is the anonymous rule again — an
+unidentified caller is independent rather than shared — but on A2A it applies per
+request rather than per process, so a client that wants continuity has to echo the
+id rather than rely on the server remembering it.
+
 > Tool/function-calling requests (`tools=`) are always a stateless passthrough
 > regardless of this toggle — the client drives the tool loop and owns that state.
 
