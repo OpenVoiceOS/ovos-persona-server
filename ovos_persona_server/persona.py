@@ -24,6 +24,20 @@ default_persona: Optional[Persona] = None
 personas: Dict[str, Persona] = {}
 
 
+class PersonaNoAnswerError(RuntimeError):
+    """Raised when no handler in the persona's chain produced an answer.
+
+    ``ovos_persona.solvers.SolverService.chat_completion``/``stream_completion``
+    return ``None`` (or yield nothing) when every configured handler declined
+    or was never dispatched — e.g. a plugin that loaded but was not wired into
+    the chain. That is a legitimate, expected outcome of a misconfigured or
+    incomplete persona, not a server bug, so it is raised explicitly here
+    rather than left to surface later as an ``AttributeError`` on
+    ``None.split()``. Routers catch it and translate it into a response that
+    names the cause instead of a generic 500 traceback.
+    """
+
+
 class ModelNotFoundError(HTTPException):
     """Raised when a request names a model that no loaded persona answers to.
 
@@ -228,11 +242,20 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
         utterance = _last_user_utterance(messages)
         context = persona.memory.build_conversation_context(utterance, sid)
         reply = persona.chat(context, sess=sess)
+        if reply is None:
+            raise PersonaNoAnswerError(
+                f"persona {persona.name!r} produced no answer: no handler in "
+                f"its chain returned a response for this request")
         persona.memory.update_history(
             [AgentMessage(MessageRole.USER, utterance),
              AgentMessage(MessageRole.ASSISTANT, reply or "")], sid)
         return reply
-    return persona.chat(_messages_to_agent(messages), sess=sess)
+    reply = persona.chat(_messages_to_agent(messages), sess=sess)
+    if reply is None:
+        raise PersonaNoAnswerError(
+            f"persona {persona.name!r} produced no answer: no handler in "
+            f"its chain returned a response for this request")
+    return reply
 
 
 def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] = None,
@@ -256,12 +279,35 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
             for tok in persona.stream(context, sess=sess):
                 chunks.append(tok)
                 yield tok
+            if not any(chunks):
+                raise PersonaNoAnswerError(
+                    f"persona {persona.name!r} produced no answer: no handler "
+                    f"in its chain streamed a response for this request")
             persona.memory.update_history(
                 [AgentMessage(MessageRole.USER, utterance),
                  AgentMessage(MessageRole.ASSISTANT, "".join(chunks))], sid)
 
         return _streamer()
-    return persona.stream(_messages_to_agent(messages), sess=sess)
+    return _require_stream_answer(persona, persona.stream(_messages_to_agent(messages), sess=sess))
+
+
+def _require_stream_answer(persona: Persona, chunks: Iterable[str]) -> Iterable[str]:
+    """Wrap a token stream, raising :class:`PersonaNoAnswerError` if it yields nothing.
+
+    Mirrors the ``None`` check in :func:`run_chat` for the streaming seam:
+    ``SolverService.stream_completion`` simply yields no tokens when no handler
+    answered, so the "no answer" case has to be detected by watching for an
+    empty stream rather than a sentinel return value.
+    """
+    got_answer = False
+    for tok in chunks:
+        if tok:
+            got_answer = True
+        yield tok
+    if not got_answer:
+        raise PersonaNoAnswerError(
+            f"persona {persona.name!r} produced no answer: no handler in its "
+            f"chain streamed a response for this request")
 
 
 async def get_default_persona() -> Persona:

@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from ovos_persona import Persona
 
-from ovos_persona_server.persona import get_default_persona, run_chat, run_stream, resolve_persona
+from ovos_persona_server.persona import (
+    get_default_persona, run_chat, run_stream, resolve_persona, PersonaNoAnswerError,
+)
 from ovos_persona_server.schemas.anthropic import (
     AnthropicContentBlock,
     AnthropicRequest,
@@ -76,6 +78,8 @@ async def create_message(
                     output_tokens=len(content.split()),
                 ),
             ).model_dump())
+        except PersonaNoAnswerError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {exc}") from exc

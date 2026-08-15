@@ -29,7 +29,7 @@ from ovos_persona_server.server_tools import (
 )
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
-    _flatten_text, _role, _messages_to_agent,
+    _flatten_text, _role, _messages_to_agent, PersonaNoAnswerError,
 )
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
@@ -266,6 +266,8 @@ async def chat_completions(
                 parallel_tool_calls=request_body.parallel_tool_calls
             ).model_dump(exclude_unset=True))
 
+        except PersonaNoAnswerError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {e}") from e
@@ -304,9 +306,21 @@ async def chat_completions(
                                               total_tokens=current_completion_tokens)
                     ).model_dump_json(exclude_unset=True)
                     yield f"data: {stream_chunk}\n\n"
+        except PersonaNoAnswerError as e:
+            # The HTTP status is already committed to 200 by the time the
+            # stream starts, so a no-answer outcome is reported in-band as an
+            # SSE error event instead of a status code. The error is a mapping
+            # with a "message" key, not a bare string: the real ``openai`` SDK
+            # (``_streaming.Stream.__stream__``) only extracts a diagnostic
+            # from an ``error`` object shaped that way, otherwise it discards
+            # it and raises a generic ``APIError``.
+            error_chunk = json.dumps(
+                {'error': {'message': str(e), 'type': 'persona_no_answer'}, 'done': True})
+            yield f"data: {error_chunk}\n\n"
+            return
         except Exception as e:
             # Send error as part of stream
-            error_chunk = json.dumps({'error': str(e), 'done': True})
+            error_chunk = json.dumps({'error': {'message': str(e), 'type': 'server_error'}, 'done': True})
             yield f"data: {error_chunk}\n\n"
             return
 
@@ -415,6 +429,8 @@ async def create_completion(
                 system_fingerprint=None  # Not provided by persona
             ).model_dump(exclude_unset=True))
 
+        except PersonaNoAnswerError as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona completion failed: {e}") from e
@@ -441,7 +457,7 @@ async def create_completion(
                     }
                     yield f"data: {json.dumps(payload)}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+            yield f"data: {json.dumps({'error': {'message': str(e), 'type': 'server_error'}, 'done': True})}\n\n"
             return
 
         # Final chunk with finish reason

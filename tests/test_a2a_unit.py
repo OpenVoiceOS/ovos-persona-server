@@ -141,6 +141,27 @@ async def test_execute_skips_empty_chunks() -> None:
 
 
 @pytest.mark.asyncio
+async def test_execute_no_answer_emits_failed_status() -> None:
+    """A persona that streams nothing usable must terminate the task, not crash execute()."""
+    persona = _fake_persona(["", ""])
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+    ctx = _fake_context("hi")
+
+    await executor.execute(ctx, queue)  # must not raise
+
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
+    artifact_events = [e for e in events if hasattr(e, "artifact")]
+    status_events = [
+        e for e in events if hasattr(e, "status") and not isinstance(e, a2a_mod.Task)
+    ]
+
+    assert len(artifact_events) == 0
+    assert status_events
+    assert status_events[-1].status.state == a2a_mod.TaskState.TASK_STATE_FAILED
+
+
+@pytest.mark.asyncio
 async def test_execute_last_chunk_flag() -> None:
     persona = _fake_persona(["A", "B", "C"])
     executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
