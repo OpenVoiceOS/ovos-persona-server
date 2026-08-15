@@ -72,28 +72,30 @@ def _apply_tool_choice(
             be offered as-is.
         tool_choice: The OpenAI ``tool_choice`` value: ``None``/``"auto"``
             (no constraint), ``"none"`` (offer nothing, so the model cannot
-            call a tool), ``"tool"`` (the model must call *some* function --
-            not honorable through ``continue_chat``), or a named-function
-            dict (offer only that one function).
+            call a tool), ``"required"`` (the model must call *some* function
+            -- not honorable through ``continue_chat``; ``"tool"`` is a
+            deprecated alias for the same thing), or a named-function dict
+            (offer only that one function).
 
     Returns:
         The tool specs to actually offer to the engine.
 
     Raises:
         ToolChoiceError: If ``tool_choice`` cannot be honored: either it
-            demands forcing a call (``"tool"``), which ``continue_chat`` has
-            no mechanism for, or it names a function that is not among the
-            tools being offered.
+            demands forcing a call (``"required"``/``"tool"``), which
+            ``continue_chat`` has no mechanism for, or it names a function
+            that is not among the tools being offered.
     """
     if tool_choice is None or tool_choice == "auto":
         return offered
     if tool_choice == "none":
         return []
-    if tool_choice == "tool":
+    if tool_choice in ("required", "tool"):
         raise ToolChoiceError(
-            "tool_choice='tool' asks the model to be forced into calling some "
-            "function; the ChatEngine.continue_chat contract has no mechanism "
-            "to force tool invocation, so this cannot be honored.")
+            f"tool_choice={tool_choice!r} asks the model to be forced into "
+            "calling some function; the ChatEngine.continue_chat contract "
+            "has no mechanism to force tool invocation, so this cannot be "
+            "honored.")
     if isinstance(tool_choice, dict) and tool_choice.get("type") == "function":
         name = (tool_choice.get("function") or {}).get("name")
         constrained = [s for s in offered if s.get("function", {}).get("name") == name]

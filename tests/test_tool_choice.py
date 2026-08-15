@@ -109,6 +109,27 @@ def test_tool_choice_required_cannot_be_forced_is_rejected():
     assert eng.seen_tools is None
 
 
+def test_tool_choice_required_cannot_be_forced_is_rejected_specifically():
+    """``tool_choice="required"`` is the standard OpenAI spelling for the same
+    forcing request as the deprecated ``"tool"`` alias, and must be rejected
+    with the specific "cannot force tool invocation" error, not the generic
+    "unsupported tool_choice value" fallback -- a bare 422 status code cannot
+    tell the two apart.
+    """
+    eng = _EagerToolEngine()
+    app = _make_app(eng)
+    r = TestClient(app, raise_server_exceptions=False).post(
+        "/openai/v1/chat/completions",
+        json={"model": "x", "messages": [{"role": "user", "content": "2?"}],
+              "tools": _TOOLS, "tool_choice": "required"})
+    assert r.status_code == 422
+    assert eng.seen_tools is None
+    detail = r.json()["detail"]
+    assert "forced into calling some function" in detail
+    assert "no mechanism to force tool invocation" in detail
+    assert "Unsupported tool_choice value" not in detail
+
+
 def test_tool_choice_auto_preserves_todays_behaviour():
     eng = _EagerToolEngine()
     app = _make_app(eng)
