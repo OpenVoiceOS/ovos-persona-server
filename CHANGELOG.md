@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.4a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.3a1...0.17.4a1)
+
+**Merged pull requests:**
+
+- fix: honor tool\_choice instead of silently ignoring it [\#90](https://github.com/OpenVoiceOS/ovos-persona-server/pull/90) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.17.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.3a1) (2026-08-15)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.2a1...0.17.3a1)
