@@ -37,7 +37,7 @@ directly.
 """
 
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
 from ovos_utils.log import LOG
@@ -47,6 +47,62 @@ from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool
 # Upper bound on server-side tool-execution rounds, so a model that keeps
 # calling a server tool can never spin forever.
 MAX_TOOL_ITERS: int = 5
+
+
+class ToolChoiceError(ValueError):
+    """Raised when a requested ``tool_choice`` cannot be honored.
+
+    The OVOS ``ChatEngine.continue_chat`` contract has no parameter for
+    steering tool selection, so ``tool_choice`` can only be honored by
+    shaping which tools are *offered* to the engine (see
+    :func:`_apply_tool_choice`). Values that need engine-level forcing
+    (``"tool"``, i.e. "call some function") cannot be honored that way and
+    must be rejected instead of silently ignored.
+    """
+
+
+def _apply_tool_choice(
+        offered: List[Dict[str, Any]],
+        tool_choice: Optional[Union[str, Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """Shape the offered tool specs to reflect ``tool_choice``.
+
+    Args:
+        offered: The merged client + server tool specs that would otherwise
+            be offered as-is.
+        tool_choice: The OpenAI ``tool_choice`` value: ``None``/``"auto"``
+            (no constraint), ``"none"`` (offer nothing, so the model cannot
+            call a tool), ``"tool"`` (the model must call *some* function --
+            not honorable through ``continue_chat``), or a named-function
+            dict (offer only that one function).
+
+    Returns:
+        The tool specs to actually offer to the engine.
+
+    Raises:
+        ToolChoiceError: If ``tool_choice`` cannot be honored: either it
+            demands forcing a call (``"tool"``), which ``continue_chat`` has
+            no mechanism for, or it names a function that is not among the
+            tools being offered.
+    """
+    if tool_choice is None or tool_choice == "auto":
+        return offered
+    if tool_choice == "none":
+        return []
+    if tool_choice == "tool":
+        raise ToolChoiceError(
+            "tool_choice='tool' asks the model to be forced into calling some "
+            "function; the ChatEngine.continue_chat contract has no mechanism "
+            "to force tool invocation, so this cannot be honored.")
+    if isinstance(tool_choice, dict) and tool_choice.get("type") == "function":
+        name = (tool_choice.get("function") or {}).get("name")
+        constrained = [s for s in offered if s.get("function", {}).get("name") == name]
+        if not constrained:
+            raise ToolChoiceError(
+                f"tool_choice names function {name!r}, but it is not among the "
+                "tools offered in this request.")
+        return constrained
+    raise ToolChoiceError(f"Unsupported tool_choice value: {tool_choice!r}")
 
 # ToolBox plugins are effectively frozen until the process restarts (mirroring
 # the MCP/UTCP layers), so the flat registry is built once and cached.
@@ -134,6 +190,7 @@ def run_tool_loop(
         lang: Optional[str] = None,
         units: Optional[str] = None,
         registry: Optional[Dict[str, Tuple[Any, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
 ) -> AgentMessage:
     """Drive a tool-capable engine, executing the persona's own tools server-side.
 
@@ -141,6 +198,13 @@ def run_tool_loop(
     together. Calls to server tools are executed here and fed back to the model;
     the loop ends when the model returns content or requests a client-side tool
     (which is returned unexecuted for the caller to run).
+
+    ``tool_choice`` is honored by shaping which tools are offered, since
+    ``ChatEngine.continue_chat`` has no parameter of its own for it:
+    ``"none"`` offers no tools at all (the model cannot call one), and a
+    named function restricts the offer to that single tool. ``"tool"``
+    (forcing *some* call) cannot be honored this way and raises
+    :class:`ToolChoiceError` rather than being silently ignored.
 
     Args:
         engine: A ``supports_tools=True`` ChatEngine.
@@ -151,10 +215,14 @@ def run_tool_loop(
         lang: BCP-47 language code.
         units: Preferred unit system.
         registry: Pre-built server tool registry; built on demand when *None*.
+        tool_choice: OpenAI ``tool_choice`` value from the request.
 
     Returns:
         The final assistant ``AgentMessage``. Its ``tool_calls`` are non-empty
         only for client-side tools the caller must execute.
+
+    Raises:
+        ToolChoiceError: If ``tool_choice`` cannot be honored.
     """
     if registry is None:
         try:
@@ -177,6 +245,7 @@ def run_tool_loop(
     offered = [spec for spec in client_specs
                if spec.get("function", {}).get("name") not in server_names]
     offered += server_specs
+    offered = _apply_tool_choice(offered, tool_choice)
 
     convo = list(messages)
     resp: AgentMessage = AgentMessage(role=MessageRole.ASSISTANT, content="")
