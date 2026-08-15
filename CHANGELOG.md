@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.4a1...0.17.5a1)
+
+**Merged pull requests:**
+
+- fix: accept OpenAI's standard tool\_choice="required" spelling [\#92](https://github.com/OpenVoiceOS/ovos-persona-server/pull/92) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.17.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.4a1) (2026-08-15)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.3a1...0.17.4a1)
