@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.5a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a2) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.5a1...0.17.5a2)
+
+**Merged pull requests:**
+
+- docs: worked example of server-side Wikipedia tool calling with a local LLM [\#85](https://github.com/OpenVoiceOS/ovos-persona-server/pull/85) ([JarbasAl](https://github.com/JarbasAl))
+
 ## [0.17.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a1) (2026-08-15)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.4a1...0.17.5a1)
