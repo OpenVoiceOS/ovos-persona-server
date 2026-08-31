@@ -10,6 +10,7 @@
 |------|----------|
 | [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
 | [multi-persona.md](multi-persona.md) | Serving several personas from one process; model → persona routing |
+| [local-llm-wikipedia-tools.md](local-llm-wikipedia-tools.md) | Worked example: a local llama.cpp model answering from Wikipedia via server-side tools |
 | [streaming.md](streaming.md) | SSE streaming format per API |
 | [rag.md](rag.md) | Files, Vector Stores, and the RAG flow (upload → embed → search → chat) |
 | [embeddings.md](embeddings.md) | Shared embeddings backend across every vendor surface |

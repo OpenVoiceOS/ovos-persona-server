@@ -266,6 +266,12 @@ All seven non-A2A APIs support SSE streaming where the upstream spec defines it.
 Installed `ToolBox` plugins (OPM entry-point group `opm.agents.toolbox`) are
 automatically surfaced over two protocols when the server starts.
 
+They are also offered to a tool-capable chat engine, and the server runs them
+itself rather than handing the call back to the client. For a full worked example
+-- a 1.1 GB local model answering from Wikipedia on a CPU-only box, with the
+negative control that proves the tool ran -- see
+[docs/local-llm-wikipedia-tools.md](docs/local-llm-wikipedia-tools.md).
+
 ### Installing the MCP extra
 
 ```bash
