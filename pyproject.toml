@@ -50,7 +50,7 @@ e2e = [
     "boto3",
     "anthropic",
     "huggingface_hub",
-    "fastmcp>=3,<4",
+    "fastmcp>=4,<5",
     "uvicorn",
     "httpx",
     # real embedding + vector-store + RAG plugin stack
