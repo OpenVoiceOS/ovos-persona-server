@@ -25,7 +25,7 @@ A single HTTP server that exposes one or more OVOS `Persona`s as **eight concurr
 
 An OVOS Persona is a JSON file that chains together one or more **handler plugins** (also called solvers, the legacy key name). Handlers are tried in order until one returns an answer. You can mix LLMs, knowledge bases, and fallback bots in a single persona — no GPU required for non-LLM setups.
 
-See the [OVOS technical manual: Personas](https://tigregotico.github.io/ovos-technical-manual/personas/) for the full persona file schema.
+See the [OVOS technical manual: Personas](https://openvoiceos.github.io/beta-technical-manual/personas/) for the full persona file schema.
 
 ```json
 {
