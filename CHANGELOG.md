@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.8a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.8a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.7a1...0.17.8a1)
+
+**Merged pull requests:**
+
+- fix: report a persona backend HTTP failure as 502 with the upstream status [\#101](https://github.com/OpenVoiceOS/ovos-persona-server/pull/101) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.17.7a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.7a1) (2026-09-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.6a1...0.17.7a1)
