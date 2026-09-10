@@ -152,7 +152,7 @@ def _chunk_text(text: str, max_chunk_size: int, chunk_overlap: int) -> List[str]
 
 # --- Vector Store Endpoints ---
 
-@vector_stores_router.post("/", response_model=VectorStoreObject, status_code=status.HTTP_201_CREATED)
+@vector_stores_router.post("", response_model=VectorStoreObject, status_code=status.HTTP_201_CREATED)
 async def create_vector_store(
         request: CreateVectorStoreRequest,
         db: AsyncSession = Depends(get_async_db),
@@ -211,7 +211,7 @@ async def create_vector_store(
     return await _get_vector_store_object_with_counts(new_vector_store_orm, db)
 
 
-@vector_stores_router.get("/", response_model=ListVectorStoresResponse)
+@vector_stores_router.get("", response_model=ListVectorStoresResponse)
 async def list_vector_stores(
         db: AsyncSession = Depends(get_async_db),
         limit: int = Query(20, ge=1, le=100),
