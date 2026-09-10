@@ -29,7 +29,8 @@ from ovos_persona_server.server_tools import (
 )
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
-    _flatten_text, _role, _messages_to_agent, PersonaNoAnswerError,
+    _flatten_text, _role, _messages_to_agent, _last_user_utterance,
+    memory_enabled, memory_session_id, PersonaNoAnswerError,
 )
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
@@ -180,8 +181,21 @@ async def chat_completions(
         tool_choice = request_body.tool_choice.model_dump(exclude_unset=True) \
             if hasattr(request_body.tool_choice, "model_dump") \
             else (request_body.tool_choice.value if request_body.tool_choice else None)
+        # Transparent memory applies here exactly as in run_chat: the server owns
+        # the history keyed by the caller's ``user``, the client sends only the
+        # new turn. A request that carries a client tool result is mid-turn and
+        # is passed through as sent; the finished exchange is persisted once the
+        # model returns content rather than a client-side tool_call.
+        mem_sid = None
+        if memory_enabled() and getattr(persona, "memory", None) is not None \
+                and not any(m.get("role") == "tool" for m in messages):
+            mem_sid = memory_session_id(persona, request_body.user or sess.session_id)
+            utterance = _last_user_utterance(messages)
+            convo = persona.memory.build_conversation_context(utterance, mem_sid)
+        else:
+            convo = _messages_to_agent(messages)
         try:
-            resp = run_tool_loop(engine, _messages_to_agent(messages), client_specs,
+            resp = run_tool_loop(engine, convo, client_specs,
                                  session_id=sess.session_id, lang=sess.lang,
                                  units=sess.system_unit, registry=registry,
                                  tool_choice=tool_choice)
@@ -191,6 +205,10 @@ async def chat_completions(
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                                 detail=f"Persona chat failed: {e}") from e
+        if mem_sid is not None and not getattr(resp, "tool_calls", None):
+            persona.memory.update_history(
+                [AgentMessage(MessageRole.USER, utterance),
+                 AgentMessage(MessageRole.ASSISTANT, resp.content or "")], mem_sid)
 
         if stream:
             return StreamingResponse(
