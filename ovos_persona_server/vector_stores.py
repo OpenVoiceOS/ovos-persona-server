@@ -28,7 +28,7 @@ from ovos_persona_server.metadata import get_async_db, VectorStore as VectorStor
 from ovos_persona_server.schemas.openai_vectorstore import (
     VectorStoreObject, CreateVectorStoreRequest, UpdateVectorStoreRequest, ListVectorStoresResponse,
     VectorStoreFileObject, CreateVectorStoreFileRequest, ListVectorStoreFilesResponse, SearchVectorStoreFileRequest,
-    VectorStoreFileCounts, VectorStoreDeleted, VectorStoreFileDeleted, VectorStoreSearchResponse, SearchResultChunk,
+    VectorStoreFileCounts, VectorStoreDeleted, VectorStoreFileDeleted, VectorStoreSearchResponse, SearchResultChunk, SearchContentPart,
     VectorStoreFileLastError
 )
 
@@ -151,6 +151,17 @@ def _chunk_text(text: str, max_chunk_size: int, chunk_overlap: int) -> List[str]
 
 
 # --- Vector Store Endpoints ---
+
+def _search_hit(metadata: Dict[str, Any], score: float) -> SearchResultChunk:
+    """Build one search hit from a stored chunk's metadata, content as OpenAI text parts."""
+    return SearchResultChunk(
+        file_id=metadata['file_id'],
+        filename=metadata.get('filename', ''),
+        content=[SearchContentPart(text=metadata.get('content', ''))],
+        metadata=metadata,
+        score=score,
+    )
+
 
 @vector_stores_router.post("", response_model=VectorStoreObject, status_code=status.HTTP_201_CREATED)
 async def create_vector_store(
@@ -458,6 +469,7 @@ async def create_vector_store_file(
                 embedding_keys_for_batch.append(embedding_key)
                 embedding_metadata_for_batch.append({
                     "file_id": file_orm.id,
+                    "filename": file_orm.filename,
                     "chunk_index": i,
                     "content": chunk_content,
                     "vector_store_file_id": new_vs_file_orm.id
@@ -665,15 +677,8 @@ async def search_vector_store(
         # 3. Format the results
         data = []
         for _key, score, metadata in search_results:
-            # Note: content needs to be retrieved from FileChunkORM
             if metadata and 'file_id' in metadata:
-                data.append(SearchResultChunk(
-                    type="file_search",  # Explicitly set type as per schema
-                    file_id=metadata['file_id'],
-                    content=metadata['content'],
-                    metadata=metadata,
-                    score=score
-                ))
+                data.append(_search_hit(metadata, score))
 
         return VectorStoreSearchResponse(object="list", data=data,
                                          has_more=False)  # has_more is always False in this basic impl

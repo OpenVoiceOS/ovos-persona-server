@@ -229,11 +229,18 @@ class SearchVectorStoreFileRequest(BaseModel):
     rewrite_query: Optional[bool] = Field(False, description="Whether to rewrite the natural language query for vector search.")
 
 
+class SearchContentPart(BaseModel):
+    """One text part of a search hit, the shape the OpenAI API returns."""
+    type: Literal["text"] = Field("text")
+    text: str
+
+
 class SearchResultChunk(BaseModel):
     """Represents a single search result chunk from a vector store search."""
     type: Literal["file_search"] = Field("file_search")
     file_id: str
-    content: str
+    filename: str = Field("")
+    content: List[SearchContentPart]
     metadata: Dict[str, Any]
     score: float
 
