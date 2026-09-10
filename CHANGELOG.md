@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.6a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.6a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.5a2...0.17.6a1)
+
+**Merged pull requests:**
+
+- fix: honor transparent memory on the tool-capable chat branch [\#99](https://github.com/OpenVoiceOS/ovos-persona-server/pull/99) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.17.5a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a2) (2026-08-31)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.5a1...0.17.5a2)
