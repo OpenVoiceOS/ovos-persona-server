@@ -82,7 +82,7 @@ def _get_file_storage_dir() -> str:
 
 # --- Files Endpoints ---
 
-@files_router.post("/", response_model=FileObject, status_code=status.HTTP_200_OK)
+@files_router.post("", response_model=FileObject, status_code=status.HTTP_200_OK)
 async def upload_file(
         file: UploadFile = File(..., description="The file to upload."),
         purpose: FilePurpose = Form(...,
@@ -165,7 +165,7 @@ async def upload_file(
                             detail=f"Failed to upload file: {e}") from e
 
 
-@files_router.get("/", response_model=FileListResponse, status_code=status.HTTP_200_OK)
+@files_router.get("", response_model=FileListResponse, status_code=status.HTTP_200_OK)
 async def list_files(
         purpose: Optional[FilePurpose] = Query(None, description="Only return files with the given purpose."),
         limit: int = Query(20, ge=1, le=100),
