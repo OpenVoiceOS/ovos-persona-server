@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.9a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.9a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.8a2...0.17.9a1)
+
+**Merged pull requests:**
+
+- fix: return vector-store search hits in the OpenAI content-parts shape [\#102](https://github.com/OpenVoiceOS/ovos-persona-server/pull/102) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.17.8a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.8a2) (2026-09-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.8a1...0.17.8a2)
