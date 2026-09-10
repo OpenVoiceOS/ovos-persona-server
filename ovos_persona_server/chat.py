@@ -41,6 +41,34 @@ from ovos_persona_server.schemas.openai_chat import (
 )
 
 
+def _upstream_status(exc: BaseException) -> Optional[int]:
+    """Return the HTTP status a persona backend answered, if the failure carries one.
+
+    Chat engines that call a remote model raise their client library's error
+    with the upstream response attached (``requests.HTTPError.response``); it
+    may be wrapped once more by the plugin. Walk the cause chain for it.
+    """
+    seen = 0
+    while exc is not None and seen < 8:
+        response = getattr(exc, "response", None)
+        code = getattr(response, "status_code", None)
+        if isinstance(code, int):
+            return code
+        exc = exc.__cause__ or exc.__context__
+        seen += 1
+    return None
+
+
+def _chat_failure(exc: Exception) -> HTTPException:
+    """Map a persona failure to the HTTP error the client should see."""
+    code = _upstream_status(exc)
+    if code is not None:
+        return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY,
+                             detail=f"Persona backend answered HTTP {code}: {exc}")
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                         detail=f"Persona chat failed: {exc}")
+
+
 def _tool_capable_engine(persona: Persona):
     """Return the persona's first chat handler advertising native tool support, or None."""
     try:
@@ -203,8 +231,7 @@ async def chat_completions(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=str(e)) from e
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail=f"Persona chat failed: {e}") from e
+            raise _chat_failure(e) from e
         if mem_sid is not None and not getattr(resp, "tool_calls", None):
             persona.memory.update_history(
                 [AgentMessage(MessageRole.USER, utterance),
@@ -297,8 +324,7 @@ async def chat_completions(
         except PersonaNoAnswerError as e:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail=f"Persona chat failed: {e}") from e
+            raise _chat_failure(e) from e
 
     async def streaming_chat_response() -> AsyncGenerator[str, None]:
         """Yield SSE data events in OpenAI streaming format."""
