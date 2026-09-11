@@ -62,8 +62,23 @@ e2e = [
     "ovos-flashrank-reranker-plugin",
     "ovos-solver-failure-plugin",
 ]
-test = ["pytest", "pytest-cov", "httpx", "uvicorn"]
-dev = ["pytest>=7.0", "pytest-asyncio", "pytest-cov", "httpx", "openai", "ollama", "cohere", "huggingface_hub", "boto3", "google-genai", "anthropic"]
+# Everything the unit suite under tests/ imports. The compat routers are tested
+# against each vendor's own client, so those SDKs belong here, and the a2a and
+# mcp tests are async.
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "httpx",
+    "uvicorn",
+    "openai",
+    "ollama",
+    "cohere",
+    "google-genai",
+    "boto3",
+    "anthropic",
+    "huggingface_hub",
+]
 
 [project.urls]
 Homepage = "https://github.com/OpenVoiceOS/ovos-persona-server"

@@ -1,3 +1,0 @@
-fastapi
-ovos-persona
-pydantic
