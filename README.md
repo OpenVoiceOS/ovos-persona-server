@@ -31,14 +31,14 @@ See the [OVOS technical manual: Personas](https://openvoiceos.github.io/beta-tec
 {
   "name": "OldSchoolBot",
   "handlers": [
-    "ovos-solver-wikipedia-plugin",
-    "ovos-solver-ddg-plugin",
-    "ovos-solver-plugin-wolfram-alpha",
-    "ovos-solver-wordnet-plugin",
+    "ovos-wikipedia-plugin",
+    "ovos-ddg-plugin",
+    "ovos-wolfram-alpha-plugin",
+    "ovos-wordnet-plugin",
     "ovos-solver-rivescript-plugin",
     "ovos-solver-failure-plugin"
   ],
-  "ovos-solver-plugin-wolfram-alpha": { "appid": "YOUR_API_KEY" }
+  "ovos-wolfram-alpha-plugin": { "appid": "YOUR_API_KEY" }
 }
 ```
 
@@ -146,7 +146,7 @@ curl -s http://localhost:8337/ollama/api/chat \
 
 ## A2A Endpoint
 
-`ovos-persona-server` can expose your persona as a standard [A2A](https://google.github.io/A2A/) agent server, enabling any A2A client to interact with it — including **ovos-a2a-agent** running on another OVOS instance.
+`ovos-persona-server` can expose your persona as a standard [A2A](https://google.github.io/A2A/) agent server, enabling any A2A client to interact with it — including **ovos-a2a-solver** running on another OVOS instance.
 
 ### Enable A2A
 
@@ -183,15 +183,15 @@ curl -X POST http://localhost:8337/a2a/ \
   }'
 ```
 
-### Connecting ovos-a2a-agent to this server
+### Connecting ovos-a2a-solver to this server
 
 On another OVOS instance:
 
 ```json
 {
   "name": "remote-persona",
-  "handlers": ["ovos-a2a-agent"],
-  "ovos-a2a-agent": {
+  "handlers": ["ovos-a2a-solver"],
+  "ovos-a2a-solver": {
     "url": "http://myhost:8337/a2a"
   }
 }
@@ -199,7 +199,7 @@ On another OVOS instance:
 
 ### A2A streaming
 
-The A2A endpoint supports `message/stream`. Persona sentence chunks are emitted as `TaskArtifactUpdateEvent` SSE events. Enable streaming on the client side (e.g. `"streaming": true` in `ovos-a2a-agent` config).
+The A2A endpoint supports `message/stream`. Persona sentence chunks are emitted as `TaskArtifactUpdateEvent` SSE events. Enable streaming on the client side (e.g. `"streaming": true` in `ovos-a2a-solver` config).
 
 ### A2A without `a2a-sdk`
 
@@ -214,8 +214,8 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 ```json
 {
   "name": "gpt-persona",
-  "handlers": ["ovos-openai-plugin"],
-  "ovos-openai-plugin": {
+  "handlers": ["ovos-chat-openai-plugin"],
+  "ovos-chat-openai-plugin": {
     "api_key": "sk-...",
     "model": "gpt-4o-mini"
   }
@@ -228,13 +228,13 @@ If `a2a-sdk` is not installed and `--a2a-base-url` is provided, the server start
 {
   "name": "smart-assistant",
   "handlers": [
-    "ovos-solver-wikipedia-plugin",
-    "ovos-solver-ddg-plugin",
-    "ovos-solver-wordnet-plugin",
-    "ovos-openai-plugin",
+    "ovos-wikipedia-plugin",
+    "ovos-ddg-plugin",
+    "ovos-wordnet-plugin",
+    "ovos-chat-openai-plugin",
     "ovos-solver-failure-plugin"
   ],
-  "ovos-openai-plugin": {
+  "ovos-chat-openai-plugin": {
     "api_key": "sk-...",
     "model": "gpt-4o-mini"
   }
@@ -376,7 +376,7 @@ The OpenAI and Ollama routers expose `/embeddings` endpoints. These require a so
 
 ## Authentication
 
-The server itself does not enforce authentication — deploy behind a reverse proxy (nginx, Caddy, Traefik) with TLS and auth if public exposure is required. For the A2A endpoint, A2A clients that require bearer tokens can be configured on the client side (`api_key` in `ovos-a2a-agent` config).
+The server itself does not enforce authentication — deploy behind a reverse proxy (nginx, Caddy, Traefik) with TLS and auth if public exposure is required. For the A2A endpoint, A2A clients that require bearer tokens can be configured on the client side (`api_key` in `ovos-a2a-solver` config).
 
 ---
 

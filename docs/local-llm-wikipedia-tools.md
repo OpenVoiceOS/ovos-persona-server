@@ -48,9 +48,10 @@ easiest way to confirm from the outside that a tool really ran.
   zero tools and the persona looks like a model that simply chose not to call
   anything.
 - `ovos-openai-plugin` 2.0.8a2 or newer, for the tool-capable chat engine.
-- `ovos-wikipedia-plugin`, which registers the `search_wikipedia` tool under the
-  `opm.agents.toolbox` entry point. It needs no credentials. As of 1.0.1a2 it
-  does not load here at all — see the note below.
+- `ovos-wikipedia-plugin` 1.1.1a1 or newer, which registers the
+  `search_wikipedia` tool under the `opm.agents.toolbox` entry point. It needs
+  no credentials. Earlier releases name the toolbox `ovos-wikipedia-tool` and
+  take no `bus` argument, so this server's loader cannot instantiate them.
 - A llama.cpp server, or any other OpenAI-compatible endpoint that emits real
   `tool_calls`.
 
@@ -94,7 +95,7 @@ curl -s http://localhost:8101/v1/chat/completions -H 'Content-Type: application/
     "top_p": 1.0,
     "max_tokens": 1024
   },
-  "ovos-wikipedia-tool": {
+  "ovos-wikipedia-tools": {
     "lang": "en"
   }
 }
@@ -103,7 +104,7 @@ curl -s http://localhost:8101/v1/chat/completions -H 'Content-Type: application/
 Two details matter more than they look.
 
 A toolbox is handed the config section named after its **plugin name** — the
-entry-point name `ovos-wikipedia-tool`, not the package name and not the
+entry-point name `ovos-wikipedia-tools`, not the package name and not the
 `toolbox_id`. The chat engine section is keyed the same way, by
 `ovos-chat-openai-plugin` rather than by `ovos-openai-plugin`; using the package
 name raises `ImportError: 'ovos-openai-plugin' not installed`.
@@ -245,38 +246,15 @@ If `server tools` prints an empty list, the toolbox failed to load. The loader
 swallows the reason into a warning, so read the startup log:
 
 ```
-Failed to load ToolBox plugin ovos-wikipedia-tool: ...
+Failed to load ToolBox plugin ovos-wikipedia-tools: ...
 ```
 
-### The Wikipedia plugin needs a patch right now
-
-`ovos-wikipedia-plugin` up to and including 1.0.1a2 declares
-`WikipediaToolbox.__init__(self, config=None)`. The OPM `ToolBox` contract is
-`(toolbox_id, config, bus)` and this server's loader calls `cls(config=cfg,
-bus=None)`, so instantiation raises
-
-```
-Failed to load ToolBox plugin ovos-wikipedia-tool: WikipediaToolbox.__init__() got an unexpected keyword argument 'bus'
-```
-
-The loader turns that into a warning and carries on, so the persona reports zero
-tools and behaves exactly like a model that chose not to call anything. The same
-`__init__` also drops `config` instead of passing it to `super()`, so
-`self.config` is never populated. Until a fixed release exists, patch it in the
-image after `pip install`:
-
-```dockerfile
-RUN python - <<'PY'
-import pathlib
-p = pathlib.Path("/usr/local/lib/python3.12/site-packages/ovos_wikipedia/__init__.py")
-s = p.read_text()
-s = s.replace("    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:\n        \"\"\"\n        Initialise the toolbox.",
-              "    def __init__(self, config: Optional[Dict[str, Any]] = None, bus=None) -> None:\n        \"\"\"\n        Initialise the toolbox.")
-s = s.replace("        super().__init__(toolbox_id=self.toolbox_id)",
-              "        super().__init__(toolbox_id=self.toolbox_id, config=config, bus=bus)")
-p.write_text(s)
-PY
-```
+The usual reason is a plugin older than the floor above. The OPM `ToolBox`
+contract is `(toolbox_id, config, bus)` and this server's loader calls
+`cls(config=cfg, bus=None)`, so a toolbox that takes no `bus` raises a
+`TypeError`. The loader turns that into a warning and carries on, and the
+persona then reports zero tools and behaves exactly like a model that chose not
+to call anything.
 
 ## How small can the model be
 
