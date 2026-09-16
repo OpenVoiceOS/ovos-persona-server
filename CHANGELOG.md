@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.10a1)
+
+**Merged pull requests:**
+
+- fix: untrack a virtual environment committed to the tree [\#111](https://github.com/OpenVoiceOS/ovos-persona-server/pull/111) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- fix: the test extra installs what the suite imports [\#109](https://github.com/OpenVoiceOS/ovos-persona-server/pull/109) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.17.9a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.9a1) (2026-09-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.8a2...0.17.9a1)
