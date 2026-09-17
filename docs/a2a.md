@@ -1,6 +1,6 @@
 # A2A Endpoint
 
-`ovos-persona-server` can expose the loaded persona as a standard [A2A](https://google.github.io/A2A/) (Agent-to-Agent) agent server. Any A2A client — including `ovos-a2a-agent`, LangGraph agents, CrewAI flows, and custom A2A clients — can discover and interact with it using the standard A2A protocol.
+`ovos-persona-server` can expose the loaded persona as a standard [A2A](https://google.github.io/A2A/) (Agent-to-Agent) agent server. Any A2A client — including `ovos-a2a-solver`, LangGraph agents, CrewAI flows, and custom A2A clients — can discover and interact with it using the standard A2A protocol.
 
 ## Requirements
 
@@ -118,15 +118,15 @@ From the A2A client perspective, streaming provides sentence-level latency — u
 
 The A2A `contextId` in each request maps to an OVOS session. Persona solvers that maintain session state will correlate turns by this ID. Stateless solvers (most knowledge-base solvers) process each message independently.
 
-## Connecting ovos-a2a-agent
+## Connecting ovos-a2a-solver
 
 On another OVOS instance, create a persona that points to this server:
 
 ```json
 {
   "name": "remote-persona",
-  "handlers": ["ovos-a2a-agent"],
-  "ovos-a2a-agent": {
+  "handlers": ["ovos-a2a-solver"],
+  "ovos-a2a-solver": {
     "url": "http://myhost:8337/a2a"
   }
 }

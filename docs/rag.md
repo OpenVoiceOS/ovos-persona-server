@@ -120,7 +120,7 @@ plugin):
 ```json
 {
   "name": "kb-assistant",
-  "solvers": ["ovos-solver-openai-plugin"],
+  "solvers": ["ovos-chat-openai-plugin"],
   "memory_module": "ovos-openai-rag-memory-plugin",
   "ovos-openai-rag-memory-plugin": {
     "api_url": "http://localhost:8337/openai/v1",
