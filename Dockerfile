@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # The published alpha with the A2A and MCP extras, the OpenAI-compatible chat
 # engine, and the failure line that ends a persona chain.
