@@ -34,7 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 a2a = ["a2a-sdk[http-server]>=1.1.2"]  # a2a-sdk 1.1.2 already requires httpx>=0.28.1
-mcp = ["fastmcp>=3,<4"]
+mcp = ["fastmcp>=4,<5"]
 # Plugins powering vector-store search (chunking + reranking + embeddings)
 rag = ["ovos-document-chunkers", "ovos-flashrank-reranker-plugin"]
 # Full deploy-realistic stack for the cross-plugin e2e suite (tests/e2e). Must be the
@@ -50,7 +50,7 @@ e2e = [
     "boto3",
     "anthropic",
     "huggingface_hub",
-    "fastmcp>=3,<4",
+    "fastmcp>=4,<5",
     "uvicorn",
     "httpx",
     # real embedding + vector-store + RAG plugin stack
