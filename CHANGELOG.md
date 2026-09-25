@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a1) (2026-09-25)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.0a1...0.18.1a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): fastmcp 4 in both extras, and stop pinning a tuple we do not own [\#117](https://github.com/OpenVoiceOS/ovos-persona-server/pull/117) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.0a1) (2026-09-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.12a1...0.18.0a1)
@@ -10,19 +18,19 @@
 
 ## [0.17.12a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.12a1) (2026-09-17)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.10a1...0.17.12a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.11a1...0.17.12a1)
 
 **Merged pull requests:**
 
 - fix: correct persona solver plugin names in README [\#110](https://github.com/OpenVoiceOS/ovos-persona-server/pull/110) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
-## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.11a1...0.17.10a1)
-
 ## [0.17.11a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.11a1) (2026-09-16)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.11a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.10a1...0.17.11a1)
+
+## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.10a1)
 
 **Merged pull requests:**
 
@@ -383,17 +391,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.2a1...0.3.2)
 
-**Merged pull requests:**
-
-- Release 0.3.2a1 [\#7](https://github.com/OpenVoiceOS/ovos-persona-server/pull/7) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [0.3.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.2a1) (2025-03-05)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.1...0.3.2a1)
-
-**Merged pull requests:**
-
-- Fix/streaming [\#6](https://github.com/OpenVoiceOS/ovos-persona-server/pull/6) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.3.1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.1) (2025-03-05)
 
