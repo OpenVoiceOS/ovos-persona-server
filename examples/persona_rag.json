@@ -1,0 +1,9 @@
+{
+  "name": "kb-assistant",
+  "solvers": ["ovos-solver-openai-plugin"],
+  "ovos-solver-openai-plugin": {
+    "api_url": "https://llama.smartgic.io/v1",
+    "model": "llama3.1:8b",
+    "key": "sk-xxx"
+  }
+}

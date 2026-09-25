@@ -1,0 +1,13 @@
+{
+  "name": "OpenAIProxy",
+  "solvers": [
+    "ovos-chat-openai-plugin",
+    "ovos-solver-failure-plugin"
+  ],
+  "ovos-chat-openai-plugin": {
+    "api_url": "https://llm.openvoiceos.pt/v1",
+    "key": "none",
+    "model": "big-pickle",
+    "system_prompt": "You are a helpful assistant. Give short, factual answers."
+  }
+}

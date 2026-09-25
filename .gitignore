@@ -127,6 +127,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+# a virtual environment under any name
+.v86/
+pyvenv.cfg
 
 # Spyder project settings
 .spyderproject
