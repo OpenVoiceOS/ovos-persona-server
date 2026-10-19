@@ -33,6 +33,20 @@ except Exception:  # pragma: no cover – graceful fallback when OPM not install
     _TOOLBOX_ENTRY_POINT = "opm.agents.toolbox"
 
 
+def _toolbox_source_config() -> Dict[str, Any]:
+    """Return the persona config that holds the toolbox sections.
+
+    A running server reads them from its default persona, the persona the
+    ``--persona``/``--personas-dir`` flags (or ``PERSONA_PATH`` when no flag
+    is given) loaded. A process with no persona registered, such as the
+    ``ovos-persona-tools-mcp`` stdio server, reads ``PERSONA_PATH``.
+    """
+    from ovos_persona_server import persona
+    if persona.default_persona is not None:
+        return persona.default_persona.config
+    return settings.persona_config
+
+
 def _load_toolboxes() -> List[Any]:
     """
     Instantiate every installed ``ToolBox`` plugin.
@@ -40,11 +54,10 @@ def _load_toolboxes() -> List[Any]:
     Per the OPM ``ToolBox`` contract, ``toolbox_id`` is supplied by each
     plugin's own ``__init__`` (via ``super().__init__(toolbox_id=...)``), not
     passed in by the loader, so the loader makes exactly one call:
-    ``cls(config=cfg, bus=bus)``. There is no per-toolbox
-    section in :class:`~ovos_persona_server.config.Settings` today, so the
-    plugin is handed the same top-level persona config blob solver plugins
-    already receive (``settings.persona_config``, keyed by plugin name via
-    the ``self.llm_solver: {...}`` convention) — a well-behaved toolbox can
+    ``cls(config=cfg, bus=bus)``. The plugin's settings live in the
+    persona config, the same blob solver plugins receive (see
+    :func:`_toolbox_source_config`), keyed by plugin name via the
+    ``self.llm_solver: {...}`` convention — a well-behaved toolbox can
     look up its own ``toolbox_id`` key there for plugin-specific options,
     the same way solvers look up theirs. This server has no message bus of
     its own (it is a plain FastAPI process), so ``bus`` is always ``None``.
@@ -59,7 +72,7 @@ def _load_toolboxes() -> List[Any]:
 
     plugin_classes: Dict[str, Any] = find_plugins(_TOOLBOX_ENTRY_POINT)
     instances: List[Any] = []
-    cfg = settings.persona_config
+    cfg = _toolbox_source_config()
     bus = None
     for name, cls in plugin_classes.items():
         try:

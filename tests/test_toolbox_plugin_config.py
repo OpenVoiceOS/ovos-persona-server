@@ -6,9 +6,19 @@ Both shipped ToolBox implementations read their settings directly off
 are missing, the constructor raises, ``discover_tools`` swallows it into a
 warning, and the persona quietly serves zero tools.
 """
+import json
 from unittest.mock import patch
 
+import pytest
+
+from ovos_persona_server import persona as persona_mod
 from ovos_persona_server import tools as tools_mod
+
+
+@pytest.fixture(autouse=True)
+def _no_registered_persona(monkeypatch):
+    """Each test chooses its own config source; no persona leaks in."""
+    monkeypatch.setattr(persona_mod, "default_persona", None)
 
 
 class _RecordingToolBox:
@@ -63,3 +73,27 @@ def test_toolbox_without_a_section_still_gets_the_blob():
         tools_mod._load_toolboxes()
 
     assert _Blob.seen == PERSONA
+
+
+def test_toolbox_config_comes_from_the_cli_persona(monkeypatch, tmp_path):
+    """``--persona file.json`` configures the toolboxes without PERSONA_PATH.
+
+    The server loads its personas from the CLI flags, and the toolbox
+    sections live in that same file. Reading them from PERSONA_PATH only
+    left every toolbox unconfigured when the user passed just the flag.
+    """
+    from ovos_persona_server import create_persona_app
+
+    persona_file = tmp_path / "p.json"
+    persona_file.write_text(json.dumps(PERSONA))
+    monkeypatch.delenv("PERSONA_PATH", raising=False)
+    monkeypatch.setattr(tools_mod.settings, "persona", "")
+    create_persona_app(str(persona_file))
+
+    _RecordingToolBox.last_config = None
+    with patch.object(tools_mod, "find_plugins",
+                      return_value={"ovos-mcp-toolbox": _RecordingToolBox}):
+        boxes = tools_mod._load_toolboxes()
+
+    assert boxes, "toolbox failed to instantiate -- it got the wrong config"
+    assert _RecordingToolBox.last_config == PERSONA["ovos-mcp-toolbox"]
