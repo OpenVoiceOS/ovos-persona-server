@@ -27,6 +27,7 @@ Covers:
 """
 
 import asyncio
+import importlib
 import logging
 import sys
 from unittest.mock import MagicMock
@@ -59,46 +60,36 @@ def _fake_persona(sentences, name="test-persona", description=None):
 # _A2A_AVAILABLE = False path
 # ---------------------------------------------------------------------------
 
-class TestA2ANotAvailable:
-    def test_create_a2a_application_raises_runtime_error_when_sdk_missing(self):
-        """create_a2a_application must raise RuntimeError when a2a-sdk absent."""
-        for key in list(sys.modules):
-            if key.startswith("a2a") or key == "ovos_persona_server.a2a":
-                del sys.modules[key]
-        # Make the import fail regardless of what's actually installed.
-        sys.modules["a2a"] = None  # type: ignore[assignment]
-        try:
-            import importlib
-            mod = importlib.import_module("ovos_persona_server.a2a")
-            assert mod._A2A_AVAILABLE is False
-            with pytest.raises(RuntimeError, match="a2a-sdk"):
-                mod.create_a2a_application(_fake_persona([]))
-        finally:
-            del sys.modules["a2a"]
-            for key in list(sys.modules):
-                if key == "ovos_persona_server.a2a":
-                    del sys.modules[key]
-            import importlib
-            importlib.import_module("ovos_persona_server.a2a")
+def _block_a2a_sdk(monkeypatch) -> None:
+    """Make every ``a2a`` import fail until the test ends.
 
-    def test_missing_sdk_warning_logged(self, caplog):
-        for key in list(sys.modules):
-            if key.startswith("a2a") or key == "ovos_persona_server.a2a":
-                del sys.modules[key]
-        sys.modules["a2a"] = None  # type: ignore[assignment]
-        try:
-            import importlib
-            with caplog.at_level(logging.WARNING):
-                mod = importlib.import_module("ovos_persona_server.a2a")
-            assert mod._A2A_AVAILABLE is False
-            assert any("a2a" in r.message.lower() for r in caplog.records)
-        finally:
-            del sys.modules["a2a"]
-            for key in list(sys.modules):
-                if key == "ovos_persona_server.a2a":
-                    del sys.modules[key]
-            import importlib
-            importlib.import_module("ovos_persona_server.a2a")
+    The SDK modules are shadowed with ``None`` rather than deleted. Deleting
+    them makes the next import load a second copy of the SDK, and the SDK's
+    own isinstance checks then fail in every later test of the process.
+    """
+    for key in [k for k in sys.modules if k == "a2a" or k.startswith("a2a.")]:
+        monkeypatch.setitem(sys.modules, key, None)
+    monkeypatch.setitem(sys.modules, "a2a", None)
+    monkeypatch.delitem(sys.modules, "ovos_persona_server.a2a", raising=False)
+    # The re-import rebinds the package attribute, so restore that too.
+    monkeypatch.setattr(sys.modules["ovos_persona_server"], "a2a", a2a_mod)
+
+
+class TestA2ANotAvailable:
+    def test_create_a2a_application_raises_runtime_error_when_sdk_missing(self, monkeypatch):
+        """create_a2a_application must raise RuntimeError when a2a-sdk absent."""
+        _block_a2a_sdk(monkeypatch)
+        mod = importlib.import_module("ovos_persona_server.a2a")
+        assert mod._A2A_AVAILABLE is False
+        with pytest.raises(RuntimeError, match="a2a-sdk"):
+            mod.create_a2a_application(_fake_persona([]))
+
+    def test_missing_sdk_warning_logged(self, monkeypatch, caplog):
+        _block_a2a_sdk(monkeypatch)
+        with caplog.at_level(logging.WARNING):
+            mod = importlib.import_module("ovos_persona_server.a2a")
+        assert mod._A2A_AVAILABLE is False
+        assert any("a2a" in r.message.lower() for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
