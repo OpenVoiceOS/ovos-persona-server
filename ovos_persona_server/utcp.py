@@ -25,15 +25,18 @@ Provides two endpoints:
     JSON.
 
 UTCP manual format reference:
-    https://utcp.io/spec (unofficial reference; format mirrors the spec draft)
+    https://www.utcp.io/docs/for-tool-providers
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool, list_tool_schemas
+
+UTCP_VERSION = "1.0.0"
+MANUAL_VERSION = "1.0.0"
 
 utcp_router = APIRouter(prefix="/tools", tags=["utcp"])
 
@@ -59,13 +62,12 @@ def _ensure_registry() -> Dict[str, Any]:
 
 def _utcp_tool_entry(base_url: str, tool_def: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Convert a tool descriptor dict into a UTCP tool entry.
+    Convert a tool descriptor dict into a UTCP 1.0 tool entry.
 
-    UTCP represents each tool as an object with:
-
-    - ``name`` / ``description``
-    - ``tool_provider`` → ``{"type": "http", "url": "..."}`
-    - ``inputs`` → list of parameter descriptors derived from the JSON Schema
+    ``POST /tools/{name}`` reads the tool arguments as one JSON object, so
+    the manual declares a single ``body`` input that holds them and maps it
+    to the request body with ``body_field``. This is the shape the UTCP HTTP
+    client gives every JSON request body.
 
     Args:
         base_url: The server's base URL (e.g. ``http://localhost:8337``).
@@ -74,68 +76,53 @@ def _utcp_tool_entry(base_url: str, tool_def: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         UTCP-formatted tool dict.
     """
-    arg_schema: Dict[str, Any] = tool_def.get("argument_schema", {})
-    properties: Dict[str, Any] = arg_schema.get("properties", {})
-    required: List[str] = arg_schema.get("required", [])
-
-    inputs: List[Dict[str, Any]] = []
-    for param_name, param_schema in properties.items():
-        inputs.append({
-            "name": param_name,
-            "description": param_schema.get("description", ""),
-            "type": param_schema.get("type", "string"),
-            "required": param_name in required,
-        })
-
     return {
         "name": tool_def["name"],
         "description": tool_def["description"],
-        "tool_provider": {
-            "type": "http",
-            "method": "POST",
+        "inputs": {
+            "type": "object",
+            "properties": {"body": tool_def.get("argument_schema", {})},
+            "required": ["body"],
+        },
+        "outputs": tool_def.get("output_schema", {}),
+        "tags": ["ovos", "persona-tool"],
+        "tool_call_template": {
+            "call_template_type": "http",
+            "name": "ovos_persona_tools",
+            "http_method": "POST",
             "url": f"{base_url}/tools/{tool_def['name']}",
             "content_type": "application/json",
+            "body_field": "body",
         },
-        "inputs": inputs,
-        "output_schema": tool_def.get("output_schema", {}),
     }
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
 
 @utcp_router.get(
     "/manual",
     summary="UTCP manual — list all available tools",
     response_class=JSONResponse,
 )
-async def utcp_manual(request_base_url: str = "http://localhost:8337") -> JSONResponse:
+async def utcp_manual(request: Request,
+                      request_base_url: Optional[str] = None) -> JSONResponse:
     """
-    Return a UTCP-format manual describing all installed OPM tool plugins.
+    Return a UTCP 1.0 manual describing all installed OPM tool plugins.
 
-    The ``request_base_url`` query parameter lets clients override the base
-    URL embedded in each tool's ``tool_provider.url`` (useful when the server
-    sits behind a reverse proxy).
+    The tool URLs use the base URL of the incoming request. The
+    ``request_base_url`` query parameter replaces it, for a proxy that does
+    not forward the public host.
 
     Example::
 
         GET /tools/manual?request_base_url=https://myserver.example.com
-
-    Returns:
-        JSON body::
-
-            {
-              "utcp_version": "1.0",
-              "tools": [ { "name": "...", "description": "...", ... }, ... ]
-            }
     """
+    base_url = (request_base_url or str(request.base_url)).rstrip("/")
     registry = _ensure_registry()
     schemas = list_tool_schemas(registry)
-    tools_entries = [_utcp_tool_entry(request_base_url, td) for td in schemas]
     return JSONResponse(content={
-        "utcp_version": "1.0",
-        "tools": tools_entries,
+        "utcp_version": UTCP_VERSION,
+        "manual_version": MANUAL_VERSION,
+        "tools": [_utcp_tool_entry(base_url, td) for td in schemas],
     })
 
 
