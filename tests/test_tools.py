@@ -234,9 +234,10 @@ class TestUTCPManual:
         assert resp.status_code == 200
 
     def test_manual_utcp_version(self):
-        resp = self.client.get("/tools/manual")
-        body = resp.json()
-        assert body["utcp_version"] == "1.0"
+        from ovos_persona_server.utcp import MANUAL_VERSION, UTCP_VERSION
+        body = self.client.get("/tools/manual").json()
+        assert body["utcp_version"] == UTCP_VERSION
+        assert body["manual_version"] == MANUAL_VERSION
 
     def test_manual_contains_both_tools(self):
         resp = self.client.get("/tools/manual")
@@ -245,19 +246,39 @@ class TestUTCPManual:
         assert "echo" in names
         assert "add" in names
 
-    def test_manual_tool_has_provider_url(self):
-        resp = self.client.get("/tools/manual?request_base_url=http://testserver")
-        body = resp.json()
+    def test_manual_url_comes_from_the_request(self):
+        """Without an override the tool URL names the host the client used."""
+        body = self.client.get("/tools/manual").json()
         echo = next(t for t in body["tools"] if t["name"] == "echo")
-        assert echo["tool_provider"]["url"] == "http://testserver/tools/echo"
-        assert echo["tool_provider"]["method"] == "POST"
+        assert echo["tool_call_template"]["url"] == "http://testserver/tools/echo"
 
-    def test_manual_tool_has_inputs(self):
-        resp = self.client.get("/tools/manual")
-        body = resp.json()
+    def test_manual_call_template_is_utcp_http(self):
+        body = self.client.get("/tools/manual").json()
         echo = next(t for t in body["tools"] if t["name"] == "echo")
-        input_names = [i["name"] for i in echo["inputs"]]
-        assert "message" in input_names
+        assert echo["tool_call_template"] == {
+            "call_template_type": "http",
+            "name": "ovos_persona_tools",
+            "http_method": "POST",
+            "url": "http://testserver/tools/echo",
+            "content_type": "application/json",
+            "body_field": "body",
+        }
+
+    def test_manual_inputs_wrap_the_argument_schema(self):
+        body = self.client.get("/tools/manual").json()
+        echo = next(t for t in body["tools"] if t["name"] == "echo")
+        assert echo["inputs"]["required"] == ["body"]
+        assert "message" in echo["inputs"]["properties"]["body"]["properties"]
+
+    def test_manual_loads_in_the_utcp_client(self):
+        """The real UTCP 1.x models accept every tool of the manual."""
+        from utcp.data.utcp_manual import UtcpManualSerializer
+        body = self.client.get("/tools/manual").json()
+        manual = UtcpManualSerializer().validate_dict(body)
+        assert sorted(t.name for t in manual.tools) == ["add", "echo"]
+        template = next(t for t in manual.tools if t.name == "echo").tool_call_template
+        assert template.http_method == "POST"
+        assert template.body_field == "body"
 
 
 class TestUTCPInvokeEndpoint:
@@ -459,12 +480,12 @@ class TestUTCPEdgeCases:
         assert resp.status_code == 500
 
     def test_manual_request_base_url_override(self):
-        """request_base_url query param is embedded in provider URLs."""
-        resp = self.client.get("/tools/manual?request_base_url=https://myproxy.example.com")
+        """request_base_url query param is embedded in the tool URLs."""
+        resp = self.client.get("/tools/manual?request_base_url=https://myproxy.example.com/")
         body = resp.json()
         echo = next((t for t in body["tools"] if t["name"] == "echo"), None)
         assert echo is not None
-        assert echo["tool_provider"]["url"] == "https://myproxy.example.com/tools/echo"
+        assert echo["tool_call_template"]["url"] == "https://myproxy.example.com/tools/echo"
 
 
 class TestMCPServerExtended:

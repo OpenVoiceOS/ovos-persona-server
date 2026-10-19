@@ -197,6 +197,59 @@ class TestUtcpE2E:
 
 
 # ---------------------------------------------------------------------------
+# UTCP client end-to-end
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def live_tool_server():
+    """Uvicorn serving the UTCP router over the echo/add fake toolbox."""
+    from ovos_persona_server import utcp as utcp_module
+    from tests.test_tools import _build_fake_registry
+
+    saved = (utcp_module._registry, utcp_module._registry_ready)
+    utcp_module._registry = _build_fake_registry()
+    utcp_module._registry_ready = True
+    app = FastAPI()
+    app.include_router(utcp_module.utcp_router)
+    base_url, server, thread = _start_server(app, health_path="/tools/manual")
+    yield base_url
+    server.should_exit = True
+    thread.join(timeout=5)
+    utcp_module._registry, utcp_module._registry_ready = saved
+
+
+class TestUtcpClientE2E:
+    """The real UTCP 1.x client registers the manual and calls the tools."""
+
+    def _call(self, base_url: str, tool: str, args: Dict[str, Any]) -> Any:
+        from utcp.data.utcp_client_config import UtcpClientConfig
+        from utcp.utcp_client import UtcpClient
+
+        async def run():
+            client = await UtcpClient.create(config=UtcpClientConfig(
+                manual_call_templates=[{
+                    "name": "persona",
+                    "call_template_type": "http",
+                    "url": f"{base_url}/tools/manual",
+                    "http_method": "GET",
+                }]))
+            names = sorted(t.name for t in await client.search_tools("", limit=10))
+            return names, await client.call_tool(f"persona.{tool}", args)
+
+        return asyncio.run(run())
+
+    def test_client_lists_and_calls_echo(self, live_tool_server):
+        names, result = self._call(live_tool_server, "echo",
+                                   {"body": {"message": "world"}})
+        assert names == ["persona.add", "persona.echo"]
+        assert result == {"echo": "world"}
+
+    def test_client_calls_add_with_numbers(self, live_tool_server):
+        _, result = self._call(live_tool_server, "add", {"body": {"a": 1.5, "b": 2.5}})
+        assert result == {"result": 4.0}
+
+
+# ---------------------------------------------------------------------------
 # MCP end-to-end
 # ---------------------------------------------------------------------------
 
