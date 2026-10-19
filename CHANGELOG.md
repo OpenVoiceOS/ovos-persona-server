@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a1) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.3a1...0.18.4a1)
+
+**Merged pull requests:**
+
+- fix: report a failed MCP tool call with isError true [\#122](https://github.com/OpenVoiceOS/ovos-persona-server/pull/122) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.3a1) (2026-10-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.2a1...0.18.3a1)
@@ -370,10 +378,6 @@
 ## [0.5.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a1) (2025-12-18)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.0...0.5.1a1)
-
-**Merged pull requests:**
-
-- chore: Configure Renovate [\#19](https://github.com/OpenVoiceOS/ovos-persona-server/pull/19) ([renovate[bot]](https://github.com/apps/renovate))
 
 ## [0.5.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.0) (2025-11-08)
 
