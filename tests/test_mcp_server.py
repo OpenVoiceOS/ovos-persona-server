@@ -331,3 +331,29 @@ def test_missing_extra_warning_shows_at_the_default_log_level(tmp_path):
                           text=True, timeout=120)
     assert proc.returncode == 0, proc.stderr
     assert 'pip install "ovos-persona-server[mcp]"' in proc.stderr
+
+
+def test_stdio_entry_point_writes_only_json_rpc_to_stdout(tmp_path):
+    """Run the installed console script's target. Its first stdout line must
+    be the JSON-RPC answer to initialize; a log line there breaks the MCP
+    stream for the client."""
+    import os
+    import subprocess
+    import sys
+    from importlib.metadata import entry_points
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    (script,) = entry_points().select(group="console_scripts",
+                                      name="ovos-persona-tools-mcp")
+    module, func = script.module, script.attr
+    initialize = json.dumps(_INITIALIZE) + "\n"
+    env = dict(os.environ, PYTHONPATH=str(repo), PERSONA_PATH="")
+    proc = subprocess.run(
+        [sys.executable, "-c", f"from {module} import {func}; {func}()"],
+        input=initialize, capture_output=True, text=True, timeout=120,
+        env=env, cwd=tmp_path)
+    first = proc.stdout.splitlines()[0] if proc.stdout else ""
+    reply = json.loads(first)
+    assert (reply["jsonrpc"], reply["id"]) == ("2.0", 1)
+    assert reply["result"]["serverInfo"]["name"] == "ovos-persona"
