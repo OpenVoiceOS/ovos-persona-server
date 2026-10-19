@@ -145,7 +145,7 @@ def create_persona_app(persona_path: Optional[str] = None,
     # imported here only after the Persona object is loaded
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
-    from ovos_persona_server.utcp import utcp_router
+    from ovos_persona_server.utcp import make_utcp_router
     from ovos_persona_server.cohere import cohere_router
     from ovos_persona_server.huggingface_tgi import tgi_router
     from ovos_persona_server.aws_bedrock import bedrock_router
@@ -159,7 +159,7 @@ def create_persona_app(persona_path: Optional[str] = None,
     # Canonical prefixed routers
     app.include_router(chat_router)         # /openai/v1/...
     app.include_router(ollama_router)       # /ollama/api/...
-    app.include_router(utcp_router)
+    app.include_router(make_utcp_router())  # /utcp, /tools/...
     app.include_router(cohere_router)       # /cohere/v1/...
     app.include_router(tgi_router)          # /tgi/...
     app.include_router(bedrock_router)      # /bedrock/model/...
@@ -204,17 +204,15 @@ def create_persona_app(persona_path: Optional[str] = None,
             )
 
     # Mount MCP server (streamable-HTTP transport) — opt-in via enable_mcp/--mcp.
-    # mount_mcp_on_app sets streamable_http_path="/" so the endpoint lands at /mcp
-    # (not /mcp/mcp) and chains the session manager into the host app lifespan.
     if enable_mcp:
         try:
-            from ovos_persona_server.mcp_server import mount_mcp_on_app
-            mount_mcp_on_app(app)
+            from ovos_persona_server.mcp_server import mount_mcp
+            mount_mcp(app)
         except ImportError:
             logging.getLogger(__name__).warning(
                 "--mcp was set but the mcp extra is not installed — "
                 "the /mcp endpoint will not be available. "
-                "Install with: uv pip install 'ovos-persona-server[mcp]'"
+                'Install with: pip install "ovos-persona-server[mcp]"'
             )
 
     return app

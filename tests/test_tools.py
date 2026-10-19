@@ -10,8 +10,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Unit tests for OPM tool plugin discovery, schema mapping, invoke endpoint,
-and UTCP manual contents.
+Unit tests for OPM tool plugin discovery, schema mapping and invocation.
+The UTCP and MCP surfaces are tested in test_utcp.py and test_mcp_server.py,
+which reuse the fake toolbox defined here.
 
 A fake ToolBox plugin is injected via ``unittest.mock.patch`` so no real OPM
 plugins need to be installed.
@@ -21,7 +22,6 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import Field
 
 from ovos_plugin_manager.templates.agent_tools import (
@@ -204,138 +204,6 @@ class TestInvokeTool:
 
 
 # ---------------------------------------------------------------------------
-# UTCP endpoint tests
-# ---------------------------------------------------------------------------
-
-def _make_test_app(fake_reg):
-    """Build a minimal FastAPI app with only the UTCP router, using a fake registry."""
-    from fastapi import FastAPI
-    from ovos_persona_server import utcp as utcp_module
-
-    app = FastAPI()
-
-    # Inject fake registry before importing router
-    utcp_module._registry = fake_reg
-    utcp_module._registry_ready = True
-
-    from ovos_persona_server.utcp import utcp_router
-    app.include_router(utcp_router)
-    return app
-
-
-class TestUTCPManual:
-    def setup_method(self):
-        self.app = _make_test_app(_build_fake_registry())
-        self.client = TestClient(self.app)
-
-    def test_manual_returns_200(self):
-        resp = self.client.get("/tools/manual")
-        assert resp.status_code == 200
-
-    def test_manual_utcp_version(self):
-        from ovos_persona_server.utcp import MANUAL_VERSION, UTCP_VERSION
-        body = self.client.get("/tools/manual").json()
-        assert body["utcp_version"] == UTCP_VERSION
-        assert body["manual_version"] == MANUAL_VERSION
-
-    def test_manual_contains_both_tools(self):
-        resp = self.client.get("/tools/manual")
-        body = resp.json()
-        names = {t["name"] for t in body["tools"]}
-        assert "echo" in names
-        assert "add" in names
-
-    def test_manual_url_comes_from_the_request(self):
-        """Without an override the tool URL names the host the client used."""
-        body = self.client.get("/tools/manual").json()
-        echo = next(t for t in body["tools"] if t["name"] == "echo")
-        assert echo["tool_call_template"]["url"] == "http://testserver/tools/echo"
-
-    def test_manual_call_template_is_utcp_http(self):
-        body = self.client.get("/tools/manual").json()
-        echo = next(t for t in body["tools"] if t["name"] == "echo")
-        assert echo["tool_call_template"] == {
-            "call_template_type": "http",
-            "name": "ovos_persona_tools",
-            "http_method": "POST",
-            "url": "http://testserver/tools/echo",
-            "content_type": "application/json",
-            "body_field": "body",
-        }
-
-    def test_manual_inputs_wrap_the_argument_schema(self):
-        body = self.client.get("/tools/manual").json()
-        echo = next(t for t in body["tools"] if t["name"] == "echo")
-        assert echo["inputs"]["required"] == ["body"]
-        assert "message" in echo["inputs"]["properties"]["body"]["properties"]
-
-    def test_manual_loads_in_the_utcp_client(self):
-        """The real UTCP 1.x models accept every tool of the manual."""
-        from utcp.data.utcp_manual import UtcpManualSerializer
-        body = self.client.get("/tools/manual").json()
-        manual = UtcpManualSerializer().validate_dict(body)
-        assert sorted(t.name for t in manual.tools) == ["add", "echo"]
-        template = next(t for t in manual.tools if t.name == "echo").tool_call_template
-        assert template.http_method == "POST"
-        assert template.body_field == "body"
-
-
-class TestUTCPInvokeEndpoint:
-    def setup_method(self):
-        self.app = _make_test_app(_build_fake_registry())
-        self.client = TestClient(self.app)
-
-    def test_invoke_echo_200(self):
-        resp = self.client.post("/tools/echo", json={"message": "world"})
-        assert resp.status_code == 200
-        assert resp.json() == {"echo": "world"}
-
-    def test_invoke_add_200(self):
-        resp = self.client.post("/tools/add", json={"a": 1.5, "b": 2.5})
-        assert resp.status_code == 200
-        assert resp.json() == {"result": 4.0}
-
-    def test_invoke_unknown_404(self):
-        resp = self.client.post("/tools/nonexistent", json={})
-        assert resp.status_code == 404
-
-    def test_invoke_missing_required_arg_422(self):
-        # 'message' is required for echo; omitting it should fail validation
-        resp = self.client.post("/tools/echo", json={})
-        assert resp.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# MCP server registration smoke test
-# ---------------------------------------------------------------------------
-
-class TestMCPServer:
-    def test_build_mcp_server_returns_server_object(self):
-        from ovos_persona_server.mcp_server import build_mcp_server
-        with patch(
-            "ovos_persona_server.tools.find_plugins",
-            return_value={"fake_toolbox": FakeToolBox},
-        ):
-            mcp = build_mcp_server("test-server")
-        assert mcp is not None
-        # The FastMCP instance exposes a name
-        assert mcp.name == "test-server"
-
-    def test_mcp_tools_registered(self):
-        """Each discovered tool must appear in the MCP server's tool list."""
-        from ovos_persona_server.mcp_server import build_mcp_server
-        with patch(
-            "ovos_persona_server.tools.find_plugins",
-            return_value={"fake_toolbox": FakeToolBox},
-        ):
-            mcp = build_mcp_server()
-        import asyncio
-        tools = asyncio.run(mcp.list_tools())
-        tool_names = {t.name for t in tools}
-        assert tool_names == {"echo", "add"}
-
-
-# ---------------------------------------------------------------------------
 # Additional coverage: gaps identified by --cov-report=term-missing
 # ---------------------------------------------------------------------------
 
@@ -413,148 +281,6 @@ class TestToolDiscoveryExtended:
         # Passing a non-coercible string for an int field should raise
         with pytest.raises(Exception):
             invoke_tool("boom", {"value": "not-an-int"}, registry=reg)
-
-
-class TestUTCPEdgeCases:
-    def setup_method(self):
-        from fastapi import FastAPI
-        from ovos_persona_server import utcp as utcp_module
-        app = FastAPI()
-        utcp_module._registry = _build_fake_registry()
-        utcp_module._registry_ready = True
-        from ovos_persona_server.utcp import utcp_router
-        app.include_router(utcp_router)
-        from fastapi.testclient import TestClient
-        self.client = TestClient(app)
-
-    def test_manual_empty_registry(self):
-        """Manual endpoint with empty registry returns tools=[]."""
-        from fastapi import FastAPI
-        from ovos_persona_server import utcp as utcp_module
-        app2 = FastAPI()
-        utcp_module._registry = {}
-        utcp_module._registry_ready = True
-        from ovos_persona_server.utcp import utcp_router
-        app2.include_router(utcp_router)
-        from fastapi.testclient import TestClient
-        client2 = TestClient(app2)
-        resp = client2.get("/tools/manual")
-        assert resp.status_code == 200
-        assert resp.json()["tools"] == []
-
-    def test_invoke_tool_500_on_unexpected_exception(self):
-        """When a tool raises an unexpected exception, the endpoint returns 500."""
-        class BoomArgs(ToolArguments):
-            x: str = Field(default="x")
-
-        class BoomOutput(ToolOutput):
-            y: str = Field(default="y")
-
-        class BoomBox(ToolBox):
-            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
-
-            def discover_tools(self):
-                return [AgentTool(
-                    name="crasher",
-                    description="always crashes",
-                    argument_schema=BoomArgs,
-                    output_schema=BoomOutput,
-                    tool_call=lambda args: (_ for _ in ()).throw(RuntimeError("boom")),
-                )]
-
-        tb = BoomBox()
-        reg = {"crasher": (tb, tb.tools["crasher"])}
-
-        from fastapi import FastAPI
-        from ovos_persona_server import utcp as utcp_module
-        app3 = FastAPI()
-        utcp_module._registry = reg
-        utcp_module._registry_ready = True
-        from ovos_persona_server.utcp import utcp_router
-        app3.include_router(utcp_router)
-        from fastapi.testclient import TestClient
-        client3 = TestClient(app3, raise_server_exceptions=False)
-        resp = client3.post("/tools/crasher", json={"x": "hi"})
-        assert resp.status_code == 500
-
-    def test_manual_request_base_url_override(self):
-        """request_base_url query param is embedded in the tool URLs."""
-        resp = self.client.get("/tools/manual?request_base_url=https://myproxy.example.com/")
-        body = resp.json()
-        echo = next((t for t in body["tools"] if t["name"] == "echo"), None)
-        assert echo is not None
-        assert echo["tool_call_template"]["url"] == "https://myproxy.example.com/tools/echo"
-
-
-class TestMCPServerExtended:
-    def test_mcp_handler_invokes_tool_and_returns_json(self):
-        """Registered MCP handler wraps invoke_tool and returns JSON string."""
-        from ovos_persona_server.mcp_server import build_mcp_server
-        import asyncio
-        import json as _json
-        with patch(
-            "ovos_persona_server.tools.find_plugins",
-            return_value={"fake_toolbox": FakeToolBox},
-        ):
-            mcp = build_mcp_server()
-        result = asyncio.run(mcp.call_tool("echo", {"message": "hello MCP"}))
-        text = result.content[0].text
-        assert _json.loads(text) == {"echo": "hello MCP"}
-
-    def test_mcp_tool_failure_is_an_mcp_tool_error(self):
-        """A failing tool answers with isError true and the reason as text.
-
-        MCP reports tool execution errors "in tool results with isError:
-        true", so a client can tell a failure from a result."""
-        from ovos_persona_server.mcp_server import build_mcp_server
-
-        class BoomArgs(ToolArguments):
-            x: str = Field(default="x")
-
-        class BoomOutput(ToolOutput):
-            y: str = Field(default="y")
-
-        class BoomBox(ToolBox):
-            def __init__(self, config: Dict[str, Any] = None, bus: Any = None) -> None:
-                super().__init__(toolbox_id="boom_box", config=config, bus=bus)
-
-            def discover_tools(self):
-                return [AgentTool(
-                    name="errortool",
-                    description="always errors",
-                    argument_schema=BoomArgs,
-                    output_schema=BoomOutput,
-                    tool_call=lambda args: (_ for _ in ()).throw(ValueError("oops")),
-                )]
-
-        with patch(
-            "ovos_persona_server.tools.find_plugins",
-            return_value={"boom_box": BoomBox},
-        ):
-            mcp = build_mcp_server()
-
-        import asyncio
-        from fastmcp import Client
-
-        async def call():
-            async with Client(mcp) as client:
-                return await client.call_tool("errortool", {"x": "test"},
-                                              raise_on_error=False)
-
-        result = asyncio.run(call())
-        assert result.is_error is True
-        assert "Tool execution failed for 'errortool'" in result.content[0].text
-
-    def test_mcp_build_with_no_plugins_succeeds(self):
-        """build_mcp_server with empty plugin list succeeds and logs info."""
-        from ovos_persona_server.mcp_server import build_mcp_server
-        with patch(
-            "ovos_persona_server.tools.find_plugins",
-            return_value={},
-        ):
-            mcp = build_mcp_server("empty-server")
-        assert mcp.name == "empty-server"
 
 
 class TestNoneRegistryFallbacks:

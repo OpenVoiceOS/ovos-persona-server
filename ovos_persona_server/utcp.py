@@ -10,35 +10,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-UTCP (Universal Tool Calling Protocol) router.
+UTCP (Universal Tool Calling Protocol) endpoints.
 
-Provides two endpoints:
-
-``GET /tools/manual``
-    Returns a UTCP manual JSON describing all installed OPM tool plugins as
-    HTTP-callable tools.  Clients parse this once and know how to call each
-    tool.
+``GET /utcp``
+    Returns a UTCP 1.0 manual describing all installed OPM tool plugins as
+    HTTP-callable tools. Clients parse this once and know how to call each
+    tool. ``GET /tools/manual`` serves the same manual.
 
 ``POST /tools/{name}``
-    Generic invocation endpoint.  The request body is a JSON object whose
-    fields are the tool's keyword arguments.  Returns the tool's output as
+    Generic invocation endpoint. The request body is a JSON object whose
+    fields are the tool's keyword arguments. Returns the tool's output as
     JSON.
 
 UTCP manual format reference:
     https://www.utcp.io/docs/for-tool-providers
 """
 
+import warnings
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
 from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool, list_tool_schemas
+from ovos_persona_server.version import VERSION_MAJOR, VERSION_MINOR, __version__
 
+__all__ = ["build_utcp_manual", "make_utcp_router", "MANUAL_VERSION", "UTCP_VERSION"]
+
+# The UTCP specification the manual follows, and the version of the tools
+# it describes, which is the package version.
 UTCP_VERSION = "1.0.0"
-MANUAL_VERSION = "1.0.0"
-
-utcp_router = APIRouter(prefix="/tools", tags=["utcp"])
+MANUAL_VERSION = __version__
 
 # ---------------------------------------------------------------------------
 # Registry is initialised lazily on first request so the server can start
@@ -55,10 +57,6 @@ def _ensure_registry() -> Dict[str, Any]:
         _registry_ready = True
     return _registry
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _utcp_tool_entry(base_url: str, tool_def: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -97,76 +95,110 @@ def _utcp_tool_entry(base_url: str, tool_def: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def build_utcp_manual(base_url: str) -> Dict[str, Any]:
+    """Return the UTCP 1.0 manual for every installed OPM tool.
 
-@utcp_router.get(
-    "/manual",
-    summary="UTCP manual — list all available tools",
-    response_class=JSONResponse,
-)
-async def utcp_manual(request: Request,
-                      request_base_url: Optional[str] = None) -> JSONResponse:
+    Args:
+        base_url: The server's public base URL, e.g. ``http://localhost:8337``.
+            A trailing slash is stripped.
+
+    Returns:
+        A dict conforming to the UTCP ``UtcpManual`` schema.
     """
-    Return a UTCP 1.0 manual describing all installed OPM tool plugins.
-
-    The tool URLs use the base URL of the incoming request. The
-    ``request_base_url`` query parameter replaces it, for a proxy that does
-    not forward the public host.
-
-    Example::
-
-        GET /tools/manual?request_base_url=https://myserver.example.com
-    """
-    base_url = (request_base_url or str(request.base_url)).rstrip("/")
-    registry = _ensure_registry()
-    schemas = list_tool_schemas(registry)
-    return JSONResponse(content={
+    base_url = base_url.rstrip("/")
+    schemas = list_tool_schemas(_ensure_registry())
+    return {
         "utcp_version": UTCP_VERSION,
         "manual_version": MANUAL_VERSION,
         "tools": [_utcp_tool_entry(base_url, td) for td in schemas],
-    })
+    }
 
 
-@utcp_router.post(
-    "/{name}",
-    summary="Invoke an OPM tool plugin by name",
-    response_class=JSONResponse,
-)
-async def invoke_tool_endpoint(name: str, body: Dict[str, Any] = None) -> JSONResponse:
+def make_utcp_router() -> APIRouter:
+    """Return a router serving ``GET /utcp``, ``GET /tools/manual`` and
+    ``POST /tools/{name}``.
+
+    The manual's base URL is read from each request, so the tool URLs name
+    the host and port the client used.
     """
-    Invoke a named OPM tool plugin and return its output as JSON.
+    router = APIRouter(tags=["utcp"])
 
-    The request body must be a JSON object whose keys match the tool's
-    declared input parameters (see ``GET /tools/manual`` for schemas).
+    async def utcp_manual(request: Request,
+                          request_base_url: Optional[str] = None) -> JSONResponse:
+        """
+        Return a UTCP 1.0 manual describing all installed OPM tool plugins.
 
-    Args:
-        name: The tool name as listed in the UTCP manual.
-        body: JSON request body (tool kwargs).
+        The tool URLs use the base URL of the incoming request. The
+        ``request_base_url`` query parameter replaces it, for a proxy that
+        does not forward the public host.
 
-    Returns:
-        JSON object matching the tool's ``output_schema``.
+        Example::
 
-    Raises:
-        404: If no tool with that name is registered.
-        422: If the tool's input validation fails.
-        500: If the tool raises an unexpected exception.
-    """
-    registry = _ensure_registry()
-    if name not in registry:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Tool {name!r} not found. Check GET /tools/manual for available tools.",
-        )
-    kwargs: Dict[str, Any] = body or {}
-    try:
-        result = invoke_tool(name, kwargs, registry=registry)
-        return JSONResponse(content=result)
-    except (ValueError, TypeError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Tool input validation failed: {exc}",
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Tool execution failed: {exc}",
-        ) from exc
+            GET /utcp?request_base_url=https://myserver.example.com
+        """
+        return JSONResponse(content=build_utcp_manual(
+            request_base_url or str(request.base_url)))
+
+    router.add_api_route("/utcp", utcp_manual, methods=["GET"],
+                         summary="UTCP manual — agent tool discovery",
+                         response_class=JSONResponse)
+    router.add_api_route("/tools/manual", utcp_manual, methods=["GET"],
+                         summary="UTCP manual — same document as GET /utcp",
+                         response_class=JSONResponse)
+
+    @router.post(
+        "/tools/{name}",
+        summary="Invoke an OPM tool plugin by name",
+        response_class=JSONResponse,
+    )
+    async def invoke_tool_endpoint(name: str, body: Dict[str, Any] = None) -> JSONResponse:
+        """
+        Invoke a named OPM tool plugin and return its output as JSON.
+
+        The request body must be a JSON object whose keys match the tool's
+        declared input parameters (see ``GET /utcp`` for schemas).
+
+        Args:
+            name: The tool name as listed in the UTCP manual.
+            body: JSON request body (tool kwargs).
+
+        Returns:
+            JSON object matching the tool's ``output_schema``.
+
+        Raises:
+            404: If no tool with that name is registered.
+            422: If the tool's input validation fails.
+            500: If the tool raises an unexpected exception.
+        """
+        registry = _ensure_registry()
+        if name not in registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tool {name!r} not found. Check GET /utcp for available tools.",
+            )
+        kwargs: Dict[str, Any] = body or {}
+        try:
+            result = invoke_tool(name, kwargs, registry=registry)
+            return JSONResponse(content=result)
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Tool input validation failed: {exc}",
+            ) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Tool execution failed: {exc}",
+            ) from exc
+
+    return router
+
+
+def __getattr__(name: str) -> Any:
+    if name == "utcp_router":
+        warnings.warn(
+            "ovos_persona_server.utcp.utcp_router is deprecated, use make_utcp_router(); "
+            f"it will be removed in {VERSION_MAJOR}.{VERSION_MINOR + 1}.0",
+            DeprecationWarning, stacklevel=2)
+        return make_utcp_router()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
