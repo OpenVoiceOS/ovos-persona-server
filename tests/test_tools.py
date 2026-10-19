@@ -17,7 +17,6 @@ A fake ToolBox plugin is injected via ``unittest.mock.patch`` so no real OPM
 plugins need to be installed.
 """
 
-import json
 from typing import Any, Dict, List
 from unittest.mock import patch
 
@@ -503,10 +502,12 @@ class TestMCPServerExtended:
         text = result.content[0].text
         assert _json.loads(text) == {"echo": "hello MCP"}
 
-    def test_mcp_handler_returns_error_json_on_failure(self):
-        """If the underlying tool raises, the MCP handler returns JSON error."""
+    def test_mcp_tool_failure_is_an_mcp_tool_error(self):
+        """A failing tool answers with isError true and the reason as text.
+
+        MCP reports tool execution errors "in tool results with isError:
+        true", so a client can tell a failure from a result."""
         from ovos_persona_server.mcp_server import build_mcp_server
-        import json as _json
 
         class BoomArgs(ToolArguments):
             x: str = Field(default="x")
@@ -534,9 +535,16 @@ class TestMCPServerExtended:
             mcp = build_mcp_server()
 
         import asyncio
-        result = asyncio.run(mcp.call_tool("errortool", {"x": "test"}))
-        text = result.content[0].text
-        assert "error" in _json.loads(text)
+        from fastmcp import Client
+
+        async def call():
+            async with Client(mcp) as client:
+                return await client.call_tool("errortool", {"x": "test"},
+                                              raise_on_error=False)
+
+        result = asyncio.run(call())
+        assert result.is_error is True
+        assert "Tool execution failed for 'errortool'" in result.content[0].text
 
     def test_mcp_build_with_no_plugins_succeeds(self):
         """build_mcp_server with empty plugin list succeeds and logs info."""
