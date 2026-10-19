@@ -82,7 +82,17 @@ except ImportError:
     _A2A_AVAILABLE = False
     LOG.warning(
         "a2a-sdk is not installed — A2A endpoint will not be available. "
-        "Install with: uv pip install 'ovos-persona-server[a2a]'"
+        "Install with: uv pip install --prerelease=allow 'ovos-persona-server[a2a]'"
+    )
+except Exception as exc:
+    # An installed a2a-sdk can fail inside its own import, e.g. with an httpx
+    # major it does not support. A2A is optional, so the server starts without it.
+    _A2A_AVAILABLE = False
+    LOG.warning(
+        "a2a-sdk is installed but failed to import (%s: %s) — A2A endpoint "
+        "will not be available. Reinstall with: uv pip install "
+        "--prerelease=allow 'ovos-persona-server[a2a]'",
+        type(exc).__name__, exc,
     )
 
 if TYPE_CHECKING:
@@ -272,7 +282,7 @@ def create_a2a_application(
     if not _A2A_AVAILABLE:
         raise RuntimeError(
             "a2a-sdk is not installed. "
-            "Install it with: uv pip install 'ovos-persona-server[a2a]'"
+            "Install it with: uv pip install --prerelease=allow 'ovos-persona-server[a2a]'"
         )
 
     card = _agent_card(persona, base_url)
