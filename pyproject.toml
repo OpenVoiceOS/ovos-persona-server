@@ -20,12 +20,12 @@ keywords = [
     "OpenVoiceOS",
 ]
 dependencies = [
-    "fastapi",
+    "fastapi>=0.115",
     "ovos-persona>=0.9.0a6",  # memory plugin receives persona config (feat/memory-plugin-config)
     "ovos-plugin-manager>=2.11.1a1,<3.0.0",  # tool-call contract (ToolCall, MessageRole.TOOL) + AGENT_TOOLBOX config kwarg
     "ovos-workshop",
     "pydantic",
-    "uvicorn",
+    "uvicorn>=0.34",
     "aiosqlite",
     "sqlalchemy[asyncio]>=2.0",  # [asyncio] pulls greenlet, required by AsyncSession
     "python-dotenv",
@@ -33,8 +33,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-a2a = ["a2a-sdk[http-server]>=1.1.2"]  # a2a-sdk 1.1.2 already requires httpx>=0.28.1
-mcp = ["fastmcp>=4,<5"]
+a2a = ["a2a-sdk[http-server]>=1.2.3"]
+mcp = ["fastmcp>=4.1.1"]
 # Plugins powering vector-store search (chunking + reranking + embeddings)
 rag = ["ovos-document-chunkers", "ovos-flashrank-reranker-plugin"]
 # Full deploy-realistic stack for the cross-plugin e2e suite (tests/e2e). Must be the
@@ -50,7 +50,10 @@ e2e = [
     "boto3",
     "anthropic",
     "huggingface_hub",
-    "fastmcp>=4,<5",
+    "fastmcp>=4.1.1",
+    "mcp>=2.3.0",
+    "utcp>=1.2.0",
+    "utcp-http>=1.1.14",
     "uvicorn",
     "httpx",
     # real embedding + vector-store + RAG plugin stack
@@ -78,6 +81,10 @@ test = [
     "boto3",
     "anthropic",
     "huggingface_hub",
+    "fastmcp>=4.1.1",
+    "mcp>=2.3.0",
+    "utcp>=1.2.0",
+    "utcp-http>=1.1.14",
 ]
 
 [project.urls]
