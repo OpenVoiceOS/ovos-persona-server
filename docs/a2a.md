@@ -5,10 +5,10 @@
 ## Requirements
 
 ```bash
-uv pip install 'ovos-persona-server[a2a]'
+uv pip install --prerelease=allow 'ovos-persona-server[a2a]'
 ```
 
-The `[a2a]` extra adds `a2a-sdk>=0.3.0` and `httpx>=0.27`. Without it the server starts normally with all other APIs available; A2A is silently disabled (a warning is logged if `--a2a-base-url` is provided).
+The `[a2a]` extra adds `a2a-sdk[http-server]>=1.2.3`. Without it the server starts normally with all other APIs available; A2A is silently disabled (a warning is logged if `--a2a-base-url` is provided).
 
 ## Starting the server with A2A enabled
 
@@ -154,7 +154,7 @@ A2A client request
 **A2A endpoint returns 404**
 `a2a-sdk` is not installed. Install it and restart:
 ```bash
-uv pip install 'ovos-persona-server[a2a]'
+uv pip install --prerelease=allow 'ovos-persona-server[a2a]'
 ovos-persona-server --persona my.json --a2a-base-url http://localhost:8337/a2a
 ```
 

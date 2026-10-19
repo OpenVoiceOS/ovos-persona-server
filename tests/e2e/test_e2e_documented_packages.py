@@ -58,6 +58,8 @@ PLUGIN_PACKAGES = {
     "ovos-a2a-solver": "ovos-a2a-solver-plugin",
     "ovos-openai-rag-memory-plugin": "ovos-openai-plugin",
     "ovos-wikipedia-tools": "ovos-wikipedia-plugin",
+    "ovos-mcp-toolbox": "ovos-tool-adapters",
+    "ovos-utcp-toolbox": "ovos-tool-adapters",
 }
 
 

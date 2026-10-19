@@ -68,7 +68,7 @@ All driven by environment variables (see [`config.py`](../ovos_persona_server/co
 Install the RAG plugin stack:
 
 ```bash
-uv pip install ovos-persona-server[rag] \
+uv pip install --prerelease=allow 'ovos-persona-server[rag]' \
   ovos-gguf-plugin ovos-chromadb-embeddings-plugin
 ```
 

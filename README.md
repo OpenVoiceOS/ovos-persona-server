@@ -14,6 +14,7 @@ A single HTTP server that exposes one or more OVOS `Persona`s as **eight concurr
 - [A2A Endpoint](#a2a-endpoint)
 - [Persona Config Examples](#persona-config-examples)
 - [Streaming](#streaming)
+- [AI agent integration](#ai-agent-integration)
 - [RAG: Files & Vector Stores](#rag-files--vector-stores)
 - [Embeddings](#embeddings)
 - [Authentication](#authentication)
@@ -50,16 +51,16 @@ Find solver plugins at [github.com/OpenVoiceOS](https://github.com/OpenVoiceOS?q
 
 ```bash
 # Base server (no A2A)
-pip install ovos-persona-server
+pip install --pre ovos-persona-server
 
 # With A2A server support
-pip install 'ovos-persona-server[a2a]'
+pip install --pre 'ovos-persona-server[a2a]'
 ```
 
 With `uv` (recommended in OVOS workspaces):
 
 ```bash
-uv pip install 'ovos-persona-server[a2a]'
+uv pip install --prerelease=allow 'ovos-persona-server[a2a]'
 ```
 
 ---
@@ -261,99 +262,30 @@ All seven non-A2A APIs support SSE streaming where the upstream spec defines it.
 
 ---
 
-## OPM Tool Plugins — MCP and UTCP exposure
+## AI agent integration
 
-Installed `ToolBox` plugins (OPM entry-point group `opm.agents.toolbox`) are
-automatically surfaced over two protocols when the server starts.
+Every installed `ToolBox` plugin (entry point group `opm.agents.toolbox`) gives
+the server tools. The server publishes them to other agents:
 
-They are also offered to a tool-capable chat engine, and the server runs them
-itself rather than handing the call back to the client. For a full worked example
--- a 1.1 GB local model answering from Wikipedia on a CPU-only box, with the
-negative control that proves the tool ran -- see
-[docs/local-llm-wikipedia-tools.md](docs/local-llm-wikipedia-tools.md).
-
-### Installing the MCP extra
+- UTCP at `GET /utcp`. It is always on and needs no extra package.
+- MCP at `/mcp`. Install `ovos-persona-server[mcp]` and start with `--mcp`.
+- MCP on stdio, with the `ovos-persona-tools-mcp` command.
 
 ```bash
-pip install ovos-persona-server[mcp]
+pip install --pre "ovos-persona-server[mcp]" ovos-wikipedia-plugin
+ovos-persona-server --persona wiki.json --mcp
+claude mcp add --transport http ovos-persona http://localhost:8337/mcp
 ```
 
-Without the `[mcp]` extra, or without passing `--mcp`, only the UTCP endpoints are active.
+A persona also uses tools. It offers them to a tool-capable chat engine and runs
+the calls itself. With [ovos-tool-adapters](https://github.com/OpenVoiceOS/ovos-tool-adapters)
+installed, an `ovos-mcp-toolbox` or `ovos-utcp-toolbox` section in the persona
+file gives the persona the tools of another MCP server or UTCP manual.
 
-### UTCP — Universal Tool Calling Protocol
-
-Two endpoints are added at `/tools`:
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET`  | `/tools/manual` | Returns a UTCP manual JSON listing all tools |
-| `POST` | `/tools/{name}` | Invoke a tool by name with a JSON body |
-
-**Fetch the manual:**
-
-```bash
-curl http://localhost:8337/tools/manual
-```
-
-Response shape:
-
-```json
-{
-  "utcp_version": "1.0",
-  "tools": [
-    {
-      "name": "my_tool",
-      "description": "Does something useful.",
-      "tool_provider": {
-        "type": "http",
-        "method": "POST",
-        "url": "http://localhost:8337/tools/my_tool",
-        "content_type": "application/json"
-      },
-      "inputs": [
-        {"name": "query", "type": "string", "required": true, "description": "Search query"}
-      ],
-      "output_schema": { ... }
-    }
-  ]
-}
-```
-
-**Invoke a tool:**
-
-```bash
-curl -X POST http://localhost:8337/tools/my_tool \
-     -H "Content-Type: application/json" \
-     -d '{"query": "hello"}'
-```
-
-### MCP — Model Context Protocol
-
-The MCP endpoint is opt-in: pass `--mcp` on the command line (in addition to
-installing the `[mcp]` extra) to mount an MCP endpoint at `/mcp`. Installing
-the extra alone does **not** expose the endpoint. Each installed `ToolBox`
-tool is registered as an MCP tool with the name, description, and JSON Schema
-derived from its OPM definition.
-
-**Claude Desktop / MCP client config:**
-
-```json
-{
-  "mcpServers": {
-    "ovos-persona-tools": {
-      "url": "http://localhost:8337/mcp/sse"
-    }
-  }
-}
-```
-
-**Standalone stdio MCP server** (for clients that spawn a subprocess):
-
-```bash
-ovos-persona-tools-mcp
-```
-
-This runs the same tool set over the stdio MCP transport.
+[docs/ai-agents.md](docs/ai-agents.md) has a recipe for each case: Claude Code,
+Claude Desktop, a persona that uses other servers, UTCP and MCP clients, Docker,
+reverse proxies and security. For a worked example of a local model answering
+from Wikipedia, see [docs/local-llm-wikipedia-tools.md](docs/local-llm-wikipedia-tools.md).
 
 ### Writing a ToolBox plugin
 
@@ -397,7 +329,7 @@ The underlying solver chain failed. Check solver plugin installation and their i
 **A2A endpoint not available after starting with `--a2a-base-url`**
 `a2a-sdk` is not installed. Install it:
 ```bash
-uv pip install 'ovos-persona-server[a2a]'
+uv pip install --prerelease=allow 'ovos-persona-server[a2a]'
 ```
 Then restart the server.
 
@@ -420,7 +352,7 @@ swappable OVOS plugins. Full reference: [docs/rag.md](docs/rag.md); runnable scr
 > `base_url` — a self-hosted, private, zero-cost RAG backend with no code changes.
 
 ```bash
-uv pip install 'ovos-persona-server[rag]' ovos-gguf-plugin ovos-chromadb-embeddings-plugin
+uv pip install --prerelease=allow 'ovos-persona-server[rag]' ovos-gguf-plugin ovos-chromadb-embeddings-plugin
 
 TEXT_EMBEDDINGS_PLUGIN=ovos-gguf-embeddings-plugin EMBEDDINGS_MODEL=all-MiniLM-L6-v2 \
 EMBEDDINGS_DB_PLUGIN=ovos-chromadb-embeddings-plugin \

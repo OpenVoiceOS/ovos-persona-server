@@ -117,12 +117,12 @@ reaches the client as a nonsense answer. And 300 tokens truncates Qwen3 once its
 thinking block is counted. `temperature` 0, `top_p` 1 and `max_tokens` 1024 fixed
 both.
 
-That config section reaches the toolbox through `settings.persona_config`, which
-reads the `PERSONA_PATH` environment variable — not the `--persona` or
-`--personas-dir` argument. Set `PERSONA_PATH` as well as the CLI flag. Toolboxes
-are process-global (they come from entry points, not from the persona file), so
-one persona file is enough to configure them even when the process serves
-several personas.
+The toolbox reads that config section from the default persona, the one that
+`--persona`, `--personas-dir` or `PERSONA_PATH` loaded. Releases up to 0.18.1a1
+read only `PERSONA_PATH`, so the compose file below sets it as well as the CLI
+flag; that is harmless on later releases. Toolboxes are process-global (they come
+from entry points, not from the persona file), so one persona file is enough to
+configure them even when the process serves several personas.
 
 ## Compose
 
@@ -162,7 +162,7 @@ services:
 The image is `python:3.12-slim` plus:
 
 ```dockerfile
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --pre \
         "ovos-persona>=0.9.0a16" \
         "ovos-openai-plugin>=2.0.8a2" \
         "ovos-persona-server>=0.17.0a1" \
