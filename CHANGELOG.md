@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.2a1) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.1a2...0.18.2a1)
+
+**Merged pull requests:**
+
+- fix: serve a UTCP 1.0 manual that the UTCP client can load [\#120](https://github.com/OpenVoiceOS/ovos-persona-server/pull/120) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a2) (2026-10-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.1a1...0.18.1a2)
@@ -370,10 +378,6 @@
 ## [0.4.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.1a1) (2025-10-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0...0.4.1a1)
-
-**Merged pull requests:**
-
-- refactor: migrate to fastapi [\#14](https://github.com/OpenVoiceOS/ovos-persona-server/pull/14) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.4.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.0) (2025-04-10)
 
