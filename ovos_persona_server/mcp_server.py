@@ -34,6 +34,7 @@ import json
 from typing import Any, Dict
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.tools.function_tool import FunctionTool
 from ovos_utils.log import LOG
 
@@ -78,10 +79,12 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
                 """Invoke the OPM tool plugin and return JSON-serialised output."""
                 try:
                     result = invoke_tool(tname, kwargs, registry=registry)
-                    return json.dumps(result)
                 except Exception as exc:
                     LOG.error("MCP tool %s failed: %s", tname, exc)
-                    return json.dumps({"error": str(exc)})
+                    # MCP reports a tool execution error as a result with
+                    # isError true; ToolError carries the reason through.
+                    raise ToolError(str(exc)) from exc
+                return json.dumps(result)
             handler.__name__ = tname
             handler.__doc__ = tool_description
             return handler
