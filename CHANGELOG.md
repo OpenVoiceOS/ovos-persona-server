@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a2) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.1a1...0.18.1a2)
+
+**Merged pull requests:**
+
+- build: floor the agent-protocol dependencies at their latest releases [\#119](https://github.com/OpenVoiceOS/ovos-persona-server/pull/119) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a1) (2026-09-25)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.0a1...0.18.1a1)
@@ -226,10 +234,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a5...0.13.0a1)
 
-**Merged pull requests:**
-
-- feat: embeddings [\#11](https://github.com/OpenVoiceOS/ovos-persona-server/pull/11) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.12.0a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a5) (2026-06-14)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a4...0.12.0a5)
@@ -375,17 +379,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0a1...0.4.0)
 
-**Merged pull requests:**
-
-- Release 0.4.0a1 [\#10](https://github.com/OpenVoiceOS/ovos-persona-server/pull/10) ([github-actions[bot]](https://github.com/apps/github-actions))
-
 ## [0.4.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.0a1) (2025-04-10)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.2...0.4.0a1)
-
-**Merged pull requests:**
-
-- feat:ollama\_api\_support [\#9](https://github.com/OpenVoiceOS/ovos-persona-server/pull/9) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.3.2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.2) (2025-03-05)
 
