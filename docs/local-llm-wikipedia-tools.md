@@ -43,15 +43,10 @@ easiest way to confirm from the outside that a tool really ran.
 
 ## What you need
 
-- `ovos-persona-server` 0.17.0a1 or newer. Earlier versions hand a toolbox the
-  whole persona blob instead of its own config section, so the toolbox loads
-  zero tools and the persona looks like a model that simply chose not to call
-  anything.
-- `ovos-openai-plugin` 2.0.8a2 or newer, for the tool-capable chat engine.
-- `ovos-wikipedia-plugin` 1.1.1a1 or newer, which registers the
-  `search_wikipedia` tool under the `opm.agents.toolbox` entry point. It needs
-  no credentials. Earlier releases name the toolbox `ovos-wikipedia-tool` and
-  take no `bus` argument, so this server's loader cannot instantiate them.
+- `ovos-persona-server`.
+- `ovos-openai-plugin`, for the tool-capable chat engine.
+- `ovos-wikipedia-plugin`, which registers the `search_wikipedia` tool under
+  the `opm.agents.toolbox` entry point. It needs no credentials.
 - A llama.cpp server, or any other OpenAI-compatible endpoint that emits real
   `tool_calls`.
 
@@ -118,9 +113,7 @@ thinking block is counted. `temperature` 0, `top_p` 1 and `max_tokens` 1024 fixe
 both.
 
 The toolbox reads that config section from the default persona, the one that
-`--persona`, `--personas-dir` or `PERSONA_PATH` loaded. Releases up to 0.18.1a1
-read only `PERSONA_PATH`, so the compose file below sets it as well as the CLI
-flag; that is harmless on later releases. Toolboxes are process-global (they come
+`--persona`, `--personas-dir` or `PERSONA_PATH` loaded. Toolboxes are process-global (they come
 from entry points, not from the persona file), so one persona file is enough to
 configure them even when the process serves several personas.
 
@@ -163,10 +156,10 @@ The image is `python:3.12-slim` plus:
 
 ```dockerfile
 RUN pip install --no-cache-dir --pre \
-        "ovos-persona>=0.9.0a16" \
-        "ovos-openai-plugin>=2.0.8a2" \
-        "ovos-persona-server>=0.17.0a1" \
-        "ovos-wikipedia-plugin"
+        ovos-persona \
+        ovos-openai-plugin \
+        ovos-persona-server \
+        ovos-wikipedia-plugin
 ```
 
 Because toolboxes are discovered from entry points, every persona in the process
@@ -249,8 +242,8 @@ swallows the reason into a warning, so read the startup log:
 Failed to load ToolBox plugin ovos-wikipedia-tools: ...
 ```
 
-The usual reason is a plugin older than the floor above. The OPM `ToolBox`
-contract is `(toolbox_id, config, bus)` and this server's loader calls
+The usual reason is a toolbox that does not follow the OPM `ToolBox`
+contract. The contract is `(toolbox_id, config, bus)`, and this server's loader calls
 `cls(config=cfg, bus=None)`, so a toolbox that takes no `bus` raises a
 `TypeError`. The loader turns that into a warning and carries on, and the
 persona then reports zero tools and behaves exactly like a model that chose not

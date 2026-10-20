@@ -6,7 +6,7 @@ The persona server works with agent tools in two directions.
 
 **It gives its tools to other agents.** Every `ToolBox` plugin installed next to the server (entry point group `opm.agents.toolbox`) becomes a set of tools. The server publishes these tools over two protocols:
 
-- **MCP (Model Context Protocol).** Start the server with `--mcp` and it serves an MCP endpoint at `/mcp`. Claude Code, Claude Desktop, an OVOS agent or any MCP client can then call the tools. The `ovos-persona-tools-mcp` command serves the same tools over stdio, for clients that start the server as a process.
+- **MCP (Model Context Protocol).** Start the server with `--mcp` and it serves an MCP endpoint at `/mcp`. Claude Code, Claude Desktop, opencode, Mistral Vibe, an OVOS agent or any MCP client can then call the tools. The `ovos-persona-tools-mcp` command serves the same tools over stdio, for clients that start the server as a process.
 - **UTCP (Universal Tool Calling Protocol).** Every server publishes a UTCP manual at `GET /utcp`. The manual tells a UTCP client how to call each tool over plain HTTP at `POST /tools/{name}`. No extra package is needed.
 
 **Its personas use tools from other servers.** Add an `ovos-mcp-toolbox` or `ovos-utcp-toolbox` section to the persona file, from [ovos-tool-adapters](https://github.com/OpenVoiceOS/ovos-tool-adapters). The persona then calls the tools of another MCP server or UTCP manual while it answers a chat request. The server runs those calls itself.
@@ -39,9 +39,7 @@ The examples use the default port `8337`, the [Wikipedia toolbox](https://github
 
 Any OpenAI-compatible endpoint and any toolbox plugin work the same way. Each plugin reads the section of the persona file that has its plugin name.
 
-## User stories
-
-### "I use Claude Code and want it to use my persona's tools"
+## Let Claude Code use the persona tools
 
 You get the tools of every installed toolbox inside Claude Code.
 
@@ -84,7 +82,7 @@ You get the tools of every installed toolbox inside Claude Code.
 
 If `claude mcp get` does not show `Connected`, see [Troubleshooting](#troubleshooting).
 
-### "I want another agent to talk to my persona"
+## Let another agent talk to the persona
 
 MCP gives an agent the persona's tools, not the persona. To send the persona a message and get its answer, use A2A. Start the server with `--a2a-base-url` and point an A2A client at `/a2a`. The [A2A page](a2a.md) has the full setup.
 
@@ -97,11 +95,11 @@ An `a2a-sdk` client that sent "What is the capital of Portugal? One word." got a
 
 Agents that speak the OpenAI API can use `POST /openai/v1/chat/completions` with `"model": "wiki"` instead.
 
-### "I use Claude Desktop"
+## Use the tools from Claude Desktop
 
 Claude Desktop starts local MCP servers as processes from `claude_desktop_config.json`. That file takes a command, not a URL. Use the `ovos-persona-tools-mcp` command, which serves the same tools over stdio and needs no running server.
 
-1. Install the server with the `mcp` extra and your toolbox plugins, as in the Claude Code story.
+1. Install the server with the `mcp` extra and your toolbox plugins, as in [Let Claude Code use the persona tools](#let-claude-code-use-the-persona-tools).
 2. Add this entry to `claude_desktop_config.json`. Use absolute paths:
 
    ```json
@@ -123,7 +121,89 @@ This command was run with the reference MCP client in place of Claude Desktop. I
 
 A custom connector in the Claude settings is a different mechanism. It takes a public HTTPS URL. The server has no authentication, so do not expose it that way. See [Security](#security).
 
-### "My persona should call tools from another MCP server"
+## Let opencode use the persona tools
+
+You get the tools of every installed toolbox in opencode.
+
+1. Install the server and start it with `--mcp`, as in [Let Claude Code use the persona tools](#let-claude-code-use-the-persona-tools).
+2. Add this entry to `opencode.json` in your project folder:
+
+   ```json
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "mcp": {
+       "ovos-persona": {
+         "type": "remote",
+         "url": "http://localhost:8337/mcp",
+         "enabled": true
+       }
+     }
+   }
+   ```
+
+3. Check the connection:
+
+   ```console
+   $ opencode mcp list
+   ┌  MCP Servers
+   │
+   ●  ✓ ovos-persona connected
+   │      http://localhost:8337/mcp
+   │
+   └  1 server(s)
+   ```
+
+opencode can also start the stdio command, with no running server. Use a
+`local` entry with absolute paths:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ovos-persona": {
+      "type": "local",
+      "command": ["/home/me/.venv/bin/ovos-persona-tools-mcp"],
+      "environment": {"PERSONA_PATH": "/home/me/personas/wiki.json"},
+      "enabled": true
+    }
+  }
+}
+```
+
+## Let Mistral Vibe use the persona tools
+
+You get the tools of every installed toolbox in Vibe.
+
+1. Install the server and start it with `--mcp`, as in [Let Claude Code use the persona tools](#let-claude-code-use-the-persona-tools).
+2. Add this entry to `~/.vibe/config.toml`:
+
+   ```toml
+   [[mcp_servers]]
+   name = "ovos-persona"
+   transport = "streamable-http"
+   url = "http://localhost:8337/mcp"
+   ```
+
+   Write the entry in the file. Do not use `vibe mcp add` for this server: that
+   command sets OAuth login for an HTTP server, and the server does not use
+   OAuth.
+
+3. Start `vibe`. Vibe loads the tools of the server when it starts. It gives
+   each tool the server name as a prefix, and it changes each hyphen to `_`,
+   for example `ovos_persona_search_wikipedia`.
+
+Vibe can also start the stdio command, with no running server. Use a `stdio`
+entry with absolute paths:
+
+```toml
+[[mcp_servers]]
+name = "ovos-persona"
+transport = "stdio"
+command = "/home/me/.venv/bin/ovos-persona-tools-mcp"
+env = { PERSONA_PATH = "/home/me/personas/wiki.json" }
+```
+
+## Give the persona tools from another MCP server
 
 Install `ovos-tool-adapters` with its `mcp` extra and add an `ovos-mcp-toolbox` section to the persona file. The persona then offers that server's tools to its chat engine and runs the calls itself.
 
@@ -172,14 +252,14 @@ To use an MCP server over HTTP, such as another persona server or `ovos-translat
 
 One persona file configures one MCP server. When two toolboxes export a tool with the same name, both names get the toolbox as a prefix, for example `ovos-wikipedia-tools__search_wikipedia` and `ovos-mcp-toolbox__search_wikipedia`.
 
-### "My persona should use a UTCP manual"
+## Give the persona tools from a UTCP manual
 
 Add an `ovos-utcp-toolbox` section that points at a UTCP manual, for example the `/utcp` endpoint of another OVOS server.
 
-This needs ovos-tool-adapters 0.1.7a1 or later (the release carrying the utcp 1.x port). It does not work on 0.1.6a3, which finds no UTCP tools. Install it with its `utcp` extra:
+Install `ovos-tool-adapters` with its `utcp` extra:
 
 ```bash
-pip install --pre "ovos-tool-adapters[utcp]>=0.1.7a1"
+pip install --pre "ovos-tool-adapters[utcp]"
 ```
 
 ```json
@@ -204,7 +284,7 @@ The peer server logged the call as `POST /tools/search_wikipedia HTTP/1.1" 200 O
 
 The toolbox gives the chat engine the `body` argument but not the names of the tool arguments inside it, so a model can fail to call the tool with the right arguments.
 
-### "I have a UTCP agent and want it to find the tools by itself"
+## Let a UTCP agent discover the tools
 
 Point the agent at `/utcp`. `--mcp` is not needed.
 
@@ -237,7 +317,7 @@ Output (summary shortened):
 {'results': [['Lisbon', 'Lisbon is the capital and most populous city of Portugal, ...']]}
 ```
 
-### "I write my own agent with an MCP client"
+## Call the server from your own MCP client
 
 Use the `mcp` Python package, version 2 or later:
 
@@ -372,10 +452,8 @@ Use `request_base_url` when the server sits under a path prefix or the proxy can
 
 **`MCPToolBox: failed to connect to MCP server: 'command'`.** `ovos-tool-adapters` is installed, but the persona file has no `ovos-mcp-toolbox` section, so the toolbox has no settings. Add the section, or ignore the warning when you do not use that toolbox. The same applies to `UTCPToolBox`.
 
-**`UTCPToolBox: failed to connect to UTCP server: No module named 'utcp.client'`.** The installed `ovos-tool-adapters` is 0.1.6a3 or older and does not support the `utcp` 1.x client. Install ovos-tool-adapters 0.1.7a1 or later (the release carrying the utcp 1.x port).
 
-**`claude mcp get` does not show `Connected`.** Check that the server started with `--mcp` and that the log shows `MCP server mounted at /mcp`. Use the URL `http://<host>:8337/mcp`, not `/mcp/sse`.
+**`claude mcp get` does not show `Connected`, or `opencode mcp list` does not show `connected`.** Check that the server started with `--mcp` and that the log shows `MCP server mounted at /mcp`. Use the URL `http://<host>:8337/mcp`, not `/mcp/sse`.
 
-**The UTCP client says `Field required: tool_call_template`.** The server is older than the UTCP 1.0 manual. Upgrade `ovos-persona-server`.
 
 **The chat engine calls the wrong tool or the wrong arguments.** This is a model problem, not a protocol problem. In one run `qwen2.5:7b` called `convert_time` with a tool name as the time zone. Name the tool or the argument in the prompt, and use the sampling settings from [local-llm-wikipedia-tools.md](local-llm-wikipedia-tools.md).
