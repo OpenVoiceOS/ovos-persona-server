@@ -95,10 +95,11 @@ Repository = "https://github.com/OpenVoiceOS/ovos-persona-server"
 
 [project.scripts]
 ovos-persona-server = "ovos_persona_server.__main__:main"
-ovos-persona-tools-mcp = "ovos_persona_server.mcp_server:_run_stdio"
+ovos-persona-tools-mcp = "ovos_persona_tools_mcp:main"
 
 [tool.setuptools]
 include-package-data = true
+py-modules = ["ovos_persona_tools_mcp"]
 
 [tool.setuptools.packages.find]
 include = ["ovos_persona_server*"]

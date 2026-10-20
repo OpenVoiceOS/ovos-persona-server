@@ -31,6 +31,7 @@ MCP clients connect to::
 """
 
 import json
+import sys
 import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Dict
@@ -175,8 +176,19 @@ def mount_mcp_on_app(app, path: str = "/mcp", name: str = "ovos-persona") -> Non
 
 
 def _run_stdio() -> None:
-    """Entry point for the ``ovos-persona-tools-mcp`` console script (stdio)."""
-    build_mcp().run(transport="stdio")
+    """Serve the MCP tools over stdio; stdout carries only JSON-RPC.
+
+    Loading the toolboxes logs, and an OVOS logger created then binds
+    ``sys.stdout``, so the build runs with ``sys.stdout`` pointed at stderr.
+    Once the transport starts, the MCP SDK diverts file descriptor 1 to
+    stderr itself.
+    """
+    stdout, sys.stdout = sys.stdout, sys.stderr
+    try:
+        mcp = build_mcp()
+    finally:
+        sys.stdout = stdout
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
