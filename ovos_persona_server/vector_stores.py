@@ -613,37 +613,31 @@ async def delete_vector_store_file(
     if not vs_file_orm:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vector store file not found.")
 
-    try:
-        # 1. Find all chunk_ids (embedding_keys) associated with this VectorStoreFile
-        chunk_keys_query = select(FileChunkORM.embedding_key).where(
-            FileChunkORM.vector_store_file_id == vs_file_orm.id
-        )
-        chunk_keys_result = await db.execute(chunk_keys_query)
-        embedding_keys_to_delete = [row.embedding_key for row in chunk_keys_result.scalars().all()]
-
-        # 2. Delete embeddings from the external vector database
-        if embedding_keys_to_delete:
-            try:
-                db_embeddings.delete_embeddings_batch(keys=embedding_keys_to_delete,
-                                                      collection_name=vector_store_id)
-
-            except Exception as e:
-                # Both databases must remain in sync
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                    detail=f"Failed to delete embeddings from vector DB: {e}") from e
-        # 3. Delete chunk metadata from the local database (cascades from VectorStoreFile deletion if relationship is set up correctly)
-        # However, for explicit control and clarity, we'll delete them directly here before deleting the parent.
-        await db.execute(delete(FileChunkORM).where(FileChunkORM.vector_store_file_id == vs_file_orm.id))
-
-        # 4. Delete the VectorStoreFile record from the metadata database
-        await db.delete(vs_file_orm)
-        await db.commit()
-
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"Failed to delete vector store file and its chunks: {e}") from e
-
+    await detach_vector_store_file(vs_file_orm, db, db_embeddings)
+    await db.commit()
     return VectorStoreFileDeleted(id=file_id, object="vector_store.file.deleted", deleted=True)
+
+
+async def detach_vector_store_file(vs_file_orm: VectorStoreFileORM, db: AsyncSession,
+                                   db_embeddings: EmbeddingsDB) -> None:
+    """Remove a file from one vector store: its embeddings, its chunk rows and the link row.
+
+    The caller commits, so a file detached from several stores goes in one transaction.
+    """
+    chunk_keys_result = await db.execute(
+        select(FileChunkORM.embedding_key).where(FileChunkORM.vector_store_file_id == vs_file_orm.id)
+    )
+    embedding_keys = list(chunk_keys_result.scalars().all())
+    if embedding_keys:
+        try:
+            db_embeddings.delete_embeddings_batch(keys=embedding_keys,
+                                                  collection_name=vs_file_orm.vector_store_id)
+        except Exception as e:
+            # Both databases must remain in sync
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail=f"Failed to delete embeddings from vector DB: {e}") from e
+    await db.execute(delete(FileChunkORM).where(FileChunkORM.vector_store_file_id == vs_file_orm.id))
+    await db.delete(vs_file_orm)
 
 
 # --- Vector Store Search Endpoint ---

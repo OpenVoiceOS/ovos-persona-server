@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ovos_persona_server.config import settings
-from ovos_persona_server.metadata import get_async_db, File as FileORM
+from ovos_persona_server.metadata import get_async_db, File as FileORM, VectorStoreFile as VectorStoreFileORM
 from ovos_persona_server.schemas.openai_files import FileObject, FileListResponse, FilePurpose, DeleteFileResponse
 
 
@@ -279,6 +279,17 @@ async def delete_file(file_id: str, db: AsyncSession = Depends(get_db)) -> Delet
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found.")
 
     local_path = file_orm.local_path
+
+    # A file in a vector store leaves it first, so its chunks stop answering
+    # searches and no row points at a missing file.
+    result = await db.execute(select(VectorStoreFileORM).where(VectorStoreFileORM.file_id == file_id))
+    attached = result.scalars().all()
+    if attached:
+        from ovos_persona_server.embeddings import get_text_embeddings
+        from ovos_persona_server.vector_stores import detach_vector_store_file, get_vector_db
+        db_embeddings = await get_vector_db(await get_text_embeddings())
+        for vs_file_orm in attached:
+            await detach_vector_store_file(vs_file_orm, db, db_embeddings)
 
     # Then, delete the record from the database (this handles content_data if stored in DB)
     await db.delete(file_orm)

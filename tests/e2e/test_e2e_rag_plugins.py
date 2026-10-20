@@ -193,3 +193,25 @@ def test_rag_search_ranks_correct_doc(rag_client):
         f"got '{top_filename}' (score={results.data[0].score:.4f}). "
         f"All results: {[(id_to_name.get(r.file_id, r.file_id), r.score) for r in results.data]}"
     )
+
+
+def test_deleting_an_attached_file_detaches_it(rag_client):
+    """files.delete on a file in a vector store removes it from the store and from search."""
+    client, db_plugin = rag_client
+
+    # Uploads are deduplicated by content, and other modules in this process
+    # upload the same documents into other stores; unique bytes keep this file ours.
+    tag = f" ({db_plugin} delete test)".encode()
+    cats = client.files.create(file=("cats.txt", _DOCS["cats.txt"] + tag), purpose="assistants")
+    moon = client.files.create(file=("moon.txt", _DOCS["moon.txt"] + tag), purpose="assistants")
+    vs = client.vector_stores.create(name=f"e2e-delete-{db_plugin}")
+    for f in (cats, moon):
+        client.vector_stores.files.create(vector_store_id=vs.id, file_id=f.id)
+
+    deleted = client.files.delete(cats.id)
+    assert deleted.deleted is True and deleted.id == cats.id
+
+    assert [f.id for f in client.vector_stores.files.list(vector_store_id=vs.id).data] == [moon.id]
+    hits = client.vector_stores.search(vector_store_id=vs.id, query=_QUERY_CAT, max_num_results=5)
+    assert {hit.file_id for hit in hits.data} == {moon.id}
+    assert client.vector_stores.retrieve(vs.id).file_counts.total == 1
