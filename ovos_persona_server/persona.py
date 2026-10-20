@@ -10,7 +10,7 @@ import unicodedata
 from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import HTTPException, status
-from ovos_bus_client.session import Session, SessionManager
+from ovos_bus_client.session import Session
 from ovos_persona import Persona
 from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
 
@@ -154,6 +154,9 @@ def memory_session_id(persona: Persona, session_id: str) -> str:
     return f"{persona.name}::{session_id}"
 
 
+ANONYMOUS_MEMORY_KEY = "default"
+
+
 def memory_enabled() -> bool:
     """Whether the chat path transparently applies the persona's memory plugin.
 
@@ -225,8 +228,12 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
 
     ovos-persona's ``Persona.chat(messages, sess)`` requires a Session (it reads
     ``sess.lang`` / ``sess.system_unit``). Vendor routers carry no session of
-    their own, so a default one is supplied. Centralised here so the ovos-persona
-    call contract lives in a single place.
+    their own, so one is built per request, keyed like the memory: ``session_id``
+    when the caller sends one, else the shared ``"default"`` session. A stateful
+    solver (for example ovos-a2a-solver) therefore keeps one conversation per
+    caller identity and one shared conversation for all unidentified callers.
+    The identity is trusted as sent; it is not checked against any credential.
+    Centralised here so the ovos-persona call contract lives in a single place.
 
     When ``memory`` is enabled (``CHAT_MEMORY=transparent`` by default) and the
     persona has a memory plugin, the server owns conversation state: only the
@@ -235,11 +242,12 @@ def run_chat(persona: Persona, messages: List[dict], sess: Optional[Session] = N
     persisted for the next call — mirroring the spoken ``query`` path. Otherwise
     the client-supplied messages are passed through unchanged (stateless backend).
     """
-    sess = sess or SessionManager().get()
+    memory_key = session_id or (sess.session_id if sess else ANONYMOUS_MEMORY_KEY)
+    sess = sess or Session(session_id=memory_key)
     if memory is None:
         memory = memory_enabled()
     if memory and persona.memory is not None:
-        sid = memory_session_id(persona, session_id or sess.session_id)
+        sid = memory_session_id(persona, memory_key)
         utterance = _last_user_utterance(messages)
         context = persona.memory.build_conversation_context(utterance, sid)
         reply = persona.chat(context, sess=sess)
@@ -267,11 +275,12 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
     mode the streamed tokens are accumulated and persisted to memory once the
     stream completes.
     """
-    sess = sess or SessionManager().get()
+    memory_key = session_id or (sess.session_id if sess else ANONYMOUS_MEMORY_KEY)
+    sess = sess or Session(session_id=memory_key)
     if memory is None:
         memory = memory_enabled()
     if memory and persona.memory is not None:
-        sid = memory_session_id(persona, session_id or sess.session_id)
+        sid = memory_session_id(persona, memory_key)
         utterance = _last_user_utterance(messages)
         context = persona.memory.build_conversation_context(utterance, sid)
 

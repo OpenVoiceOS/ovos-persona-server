@@ -171,26 +171,33 @@ CHAT_MEMORY=transparent ovos-persona-server --persona kb.json
 **Why off by default.** As a *drop-in OpenAI replacement* the server must behave like
 a backend: a shared server-side memory would leak conversation across callers in a
 multi-user deployment, and the OpenAI contract expects the client to send history. So
-`off` is correct unless the server fits one user or several trusted users. The server
-trusts the `user` field and does not check it, so keep `off` for untrusted clients.
+`off` is correct unless the server fits one user or several trusted users.
+
+**Solver conversations.** `off` does not make the server stateless toward a stateful
+solver. A solver that keeps its own conversation per session id (for example
+ovos-a2a-solver, which maps it to one A2A contextId) receives the OpenAI `user` field as
+that id in both modes, and the A2A contextId on the A2A endpoint. The server trusts that
+value and checks it against no credential, so any caller can name any `user`. Callers
+that send no `user` share one default conversation.
 
 **Per-user namespacing.** In `transparent` mode the OpenAI `user` field (when present)
 is used as the memory session key, so distinct callers keep separate histories; absent
-it, a single default session is used. Even so, `transparent` is intended for the
-hosted-agent case for one user or several trusted users. The server does not check
-the `user` field, so keep it `off` for untrusted clients and general multi-tenant backends.
+it, a single default session is used, shared by every caller that sends no `user`.
+`transparent` is intended for the hosted-agent case for one user or several trusted
+users. The server does not check the `user` field, so neither mode isolates untrusted
+clients from each other.
 
 The legacy `/v1/completions` surface reads the same `user` field. On the A2A
 surface the key is `contextId`, the conversation identifier the protocol already
 carries. A client that echoes the `contextId` it got back keeps its history; one
-that sends none is given a fresh identifier per request by the a2a-sdk, so every
-request starts a new conversation. That is the anonymous rule again — an
-unidentified caller is independent rather than shared — but on A2A it applies per
-request rather than per process, so a client that wants continuity has to echo the
-id rather than rely on the server remembering it.
+that sends none is given a fresh identifier per request by the a2a-sdk. Unlike the
+HTTP chat surfaces, where callers without `user` share the default conversation, an
+A2A caller that sends no contextId starts a new conversation on every request. A
+client that wants continuity echoes the id it got back.
 
-> Tool/function-calling requests (`tools=`) are always a stateless passthrough
-> regardless of this toggle — the client drives the tool loop and owns that state.
+> A request that carries a client tool result (`role: tool`) is passed through as
+> sent, because the client drives the tool loop. Other tool-capable requests follow
+> this toggle like any chat request, and `user` selects the solver conversation as above.
 
 This applies uniformly to every vendor chat surface (OpenAI, Ollama, Cohere, Gemini,
 Anthropic, …), since they all route through the same persona chat path.

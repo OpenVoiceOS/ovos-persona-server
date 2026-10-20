@@ -38,9 +38,11 @@ class Settings:
                            for one user or several trusted users: the server keys history by session (the OpenAI
                            ``user`` field when present, else a default session) and folds the
                            persona's ``memory_module`` into every turn. Loaded from the
-                           CHAT_MEMORY environment variable. The server trusts the ``user``
-                           field and does not check it, so leave ``"off"`` for untrusted
-                           clients and drop-in-OpenAI-replacement deployments.
+                           CHAT_MEMORY environment variable. In both modes the ``user`` field
+                           (or the A2A contextId) also selects the conversation of a stateful
+                           solver, and callers without one share the default session. The
+                           server trusts ``user`` and checks it against no credential, so
+                           neither mode isolates untrusted clients from each other.
         system_prompt_strategy (str): How a client-supplied ``system`` message in an
                            incoming request is handled. ``"ignore"`` (default) drops it and
                            uses only the persona's own ``system_prompt`` (preserves existing
