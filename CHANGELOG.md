@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.5a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a2...0.18.5a1)
+
+**Merged pull requests:**
+
+- fix: start without A2A when a2a-sdk fails inside its own import [\#128](https://github.com/OpenVoiceOS/ovos-persona-server/pull/128) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a2) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a1...0.18.4a2)
