@@ -674,11 +674,13 @@ async def search_vector_store(
             return_metadata=True
         )
 
-        # 3. Format the results
+        # 3. Format the results. EmbeddingsDB.query returns a distance (lower is
+        # closer); OpenAI clients read score as a similarity (higher is closer).
+        # For the cosine space of the reference plugins, similarity = 1 - distance.
         data = []
-        for _key, score, metadata in search_results:
+        for _key, distance, metadata in search_results:
             if metadata and 'file_id' in metadata:
-                data.append(_search_hit(metadata, score))
+                data.append(_search_hit(metadata, 1.0 - distance))
 
         return VectorStoreSearchResponse(object="list", data=data,
                                          has_more=False)  # has_more is always False in this basic impl

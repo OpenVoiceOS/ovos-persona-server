@@ -188,6 +188,8 @@ def test_rag_search_ranks_correct_doc(rag_client):
     id_to_name = {v: k for k, v in file_ids.items()}
     top_filename = id_to_name.get(top_file_id, "<unknown>")
 
+    scores = [r.score for r in results.data]
+    assert scores == sorted(scores, reverse=True), f"[{db_plugin}] scores must fall from best to worst: {scores}"
     assert top_filename == _EXPECTED_FILENAME, (
         f"[{db_plugin}] expected '{_EXPECTED_FILENAME}' at rank-1, "
         f"got '{top_filename}' (score={results.data[0].score:.4f}). "
