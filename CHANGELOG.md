@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a2) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a1...0.18.4a2)
+
+**Merged pull requests:**
+
+- refactor: move the agent protocols to the shared server layout [\#127](https://github.com/OpenVoiceOS/ovos-persona-server/pull/127) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a1) (2026-10-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.3a1...0.18.4a1)
@@ -50,19 +58,19 @@
 
 ## [0.17.12a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.12a1) (2026-09-17)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.10a1...0.17.12a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.11a1...0.17.12a1)
 
 **Merged pull requests:**
 
 - fix: correct persona solver plugin names in README [\#110](https://github.com/OpenVoiceOS/ovos-persona-server/pull/110) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
-## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
-
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.11a1...0.17.10a1)
-
 ## [0.17.11a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.11a1) (2026-09-16)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.11a1)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.10a1...0.17.11a1)
+
+## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.10a1)
 
 **Merged pull requests:**
 
@@ -370,10 +378,6 @@
 ## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a1...0.5.1a2)
-
-**Merged pull requests:**
-
-- chore\(deps\): update dependency python to 3.14 [\#21](https://github.com/OpenVoiceOS/ovos-persona-server/pull/21) ([renovate[bot]](https://github.com/apps/renovate))
 
 ## [0.5.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a1) (2025-12-18)
 
