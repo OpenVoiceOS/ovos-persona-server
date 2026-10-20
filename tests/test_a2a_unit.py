@@ -29,10 +29,11 @@ pytest.importorskip("a2a", reason="a2a-sdk (the [a2a] extra) is not installed")
 
 import ovos_persona_server.a2a as a2a_mod
 
-pytestmark = pytest.mark.skipif(
-    not a2a_mod._A2A_AVAILABLE,
-    reason="a2a-sdk imported but ovos_persona_server.a2a could not wire it up",
-)
+# a2a-sdk is installed, so it must load. a2a.py starts the server without A2A
+# when the SDK fails inside its own import; a skip here would hide that
+# failure behind a green run.
+assert a2a_mod._A2A_AVAILABLE, (
+    "a2a-sdk is installed but ovos_persona_server.a2a could not import it")
 
 
 def _fake_persona(sentences: List[str]) -> MagicMock:

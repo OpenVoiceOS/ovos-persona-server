@@ -40,12 +40,14 @@ import httpx
 from fastapi import FastAPI
 
 import ovos_persona_server.a2a as a2a_mod
-from a2a.server.events import EventQueueLegacy
 
-pytestmark = pytest.mark.skipif(
-    not a2a_mod._A2A_AVAILABLE,
-    reason="a2a-sdk imported but ovos_persona_server.a2a could not wire it up",
-)
+# a2a-sdk is installed, so it must load. a2a.py starts the server without A2A
+# when the SDK fails inside its own import; a skip here would hide that
+# failure behind a green run.
+assert a2a_mod._A2A_AVAILABLE, (
+    "a2a-sdk is installed but ovos_persona_server.a2a could not import it")
+
+from a2a.server.events import EventQueueLegacy  # noqa: E402
 
 
 def _fake_persona(sentences, name="test-persona", description=None):
@@ -90,6 +92,54 @@ class TestA2ANotAvailable:
             mod = importlib.import_module("ovos_persona_server.a2a")
         assert mod._A2A_AVAILABLE is False
         assert any("a2a" in r.message.lower() for r in caplog.records)
+
+
+_FAIL_INSIDE_A2A = """
+import importlib.abc, importlib.machinery, sys
+
+class _Broken(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    # Stands in for an a2a-sdk that raises inside its own import, as
+    # a2a-sdk 1.2.3 does on Python 3.12 with httpx 1.0.dev6.
+    def find_spec(self, name, path, target=None):
+        if name == "a2a.server.tasks":
+            return importlib.machinery.ModuleSpec(name, self)
+    def create_module(self, spec):
+        return None
+    def exec_module(self, module):
+        raise AttributeError("module 'httpx' has no attribute 'AsyncClient'")
+
+sys.meta_path.insert(0, _Broken())
+"""
+
+
+class TestA2ASdkBrokenAtImport:
+    """An installed a2a-sdk that fails inside its import must not stop the
+    server: A2A is optional, so the server logs why and starts without it."""
+
+    def _run(self, tmp_path, code):
+        import subprocess
+        persona = tmp_path / "p.json"
+        persona.write_text('{"name": "p", "solvers": []}')
+        script = _FAIL_INSIDE_A2A + code.format(persona=str(persona))
+        return subprocess.run([sys.executable, "-c", script], capture_output=True,
+                              text=True, timeout=120)
+
+    def test_module_import_logs_and_disables_a2a(self, tmp_path):
+        proc = self._run(tmp_path, "import ovos_persona_server.a2a as a\n"
+                                   "assert a._A2A_AVAILABLE is False\n")
+        assert proc.returncode == 0, proc.stderr[-2000:]
+        assert "AttributeError: module 'httpx' has no attribute 'AsyncClient'" in proc.stderr
+
+    def test_server_starts_without_a2a(self, tmp_path):
+        proc = self._run(tmp_path, (
+            "import ovos_persona_server\n"
+            "from types import SimpleNamespace\n"
+            "ovos_persona_server.Persona = lambda n, c: SimpleNamespace(name=n, config=c)\n"
+            "app = ovos_persona_server.create_persona_app("
+            "[{persona!r}], a2a_base_url='http://127.0.0.1:1/a2a')\n"
+            "assert not any(getattr(r, 'path', '').startswith('/a2a') for r in app.routes)\n"))
+        assert proc.returncode == 0, proc.stderr[-2000:]
+        assert "A2A endpoint will not be available" in proc.stderr
 
 
 # ---------------------------------------------------------------------------

@@ -91,7 +91,7 @@ def create_persona_app(persona_path: Optional[str] = None,
                       using this URL as the public base URL in the Agent Card
                       (e.g. ``http://myhost:8337/a2a``). Each persona also gets
                       its own card at ``/a2a/<persona name>``. Requires
-                      ``a2a-sdk`` (``uv pip install 'ovos-persona-server[a2a]'``).
+                      ``a2a-sdk`` (``uv pip install --prerelease=allow 'ovos-persona-server[a2a]'``).
         personas_dir: Directory whose ``*.json`` files are all loaded as personas.
         default_persona: Name of the persona that answers requests which do not
                          name a model. Defaults to the first persona loaded.
@@ -198,9 +198,9 @@ def create_persona_app(persona_path: Optional[str] = None,
             app.mount("/a2a", a2a_starlette)
         else:
             logging.getLogger(__name__).warning(
-                "a2a_base_url was set but a2a-sdk is not installed — "
+                "a2a_base_url was set but a2a-sdk is not available — "
                 "A2A endpoint will not be available. "
-                "Install with: uv pip install 'ovos-persona-server[a2a]'"
+                "Install with: uv pip install --prerelease=allow 'ovos-persona-server[a2a]'"
             )
 
     # Mount MCP server (streamable-HTTP transport) — opt-in via enable_mcp/--mcp.
