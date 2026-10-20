@@ -7,7 +7,7 @@ full reference.
 ## Start a RAG-capable server
 
 ```bash
-uv pip install ovos-persona-server[rag] \
+uv pip install --prerelease=allow 'ovos-persona-server[rag]' \
   ovos-gguf-plugin ovos-chromadb-embeddings-plugin
 
 # gguf embeddings + chromadb vector store, OpenAI chat solver persona

@@ -9,7 +9,7 @@ A FastAPI server that exposes a single OVOS `Persona` instance as eight concurre
 
 **How do I expose a persona as an A2A agent?**
 ```bash
-uv pip install 'ovos-persona-server[a2a]'
+uv pip install --prerelease=allow 'ovos-persona-server[a2a]'
 ovos-persona-server --persona my.json --a2a-base-url http://myhost:8337/a2a
 ```
 The Agent Card is at `GET /a2a/.well-known/agent.json`. JSON-RPC calls go to `POST /a2a/`.
@@ -22,9 +22,9 @@ Yes. `message/stream` is supported; persona sentence chunks are emitted as `Task
 
 **How do I install it?**
 ```bash
-uv pip install -e .
+uv pip install --prerelease=allow -e .
 ```
-Or from PyPI: `pip install ovos-persona-server`.
+Or from PyPI: `pip install --pre ovos-persona-server`.
 
 **How do I start the server?**
 ```bash

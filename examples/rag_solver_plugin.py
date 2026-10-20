@@ -3,7 +3,7 @@
 The solver searches a vector store on this server, injects the retrieved context
 into the prompt, and calls the server's /chat/completions endpoint.
 
-    uv pip install ovos-openai-plugin        # provides OpenAIRAGSolver
+    uv pip install --prerelease=allow ovos-openai-plugin  # provides OpenAIRAGSolver
     python examples/rag_solver_plugin.py     # after building a store (see rag_files_vector_stores.py)
 """
 from openai import OpenAI

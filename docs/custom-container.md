@@ -136,7 +136,9 @@ A custom image `FROM python` directly installs the same three packages.
 
 ## Tools over UTCP and MCP
 
-Installed `opm.agents.toolbox` plugins are served over UTCP at `/tools/manual`
-and `/tools/{name}`. With the `mcp` extra, which the base image carries, start
+Installed `opm.agents.toolbox` plugins are served over UTCP at `/utcp` and
+`/tools/{name}`. With the `mcp` extra, which the base image carries, start
 the server with `--mcp` to mount an MCP endpoint at `/mcp` (streamable HTTP).
 Add `"--mcp"` to the `command` list in `docker-compose.yml` to turn it on.
+The image has no toolbox plugin; [ai-agents.md](ai-agents.md#docker) shows
+how to add one.

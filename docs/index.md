@@ -10,6 +10,8 @@
 |------|----------|
 | [api-compatibility.md](api-compatibility.md) | All 7 non-A2A APIs: prefixes, endpoints, auth, request schemas, curl examples |
 | [multi-persona.md](multi-persona.md) | Serving several personas from one process; model → persona routing |
+| [ai-agents.md](ai-agents.md) | MCP and UTCP: give the persona's tools to other agents, and give a persona the tools of other servers |
+| [a2a.md](a2a.md) | The A2A endpoint: other agents talk to a persona |
 | [local-llm-wikipedia-tools.md](local-llm-wikipedia-tools.md) | Worked example: a local llama.cpp model answering from Wikipedia via server-side tools |
 | [streaming.md](streaming.md) | SSE streaming format per API |
 | [rag.md](rag.md) | Files, Vector Stores, and the RAG flow (upload → embed → search → chat) |
@@ -30,7 +32,9 @@ Runnable examples live in [`examples/`](../examples/).
 | Cohere | `/cohere/v1` | `cohere.py` | [api-compatibility.md](api-compatibility.md#5-cohere----coherev1) |
 | HuggingFace TGI | `/tgi` | `huggingface_tgi.py` | [api-compatibility.md](api-compatibility.md#6-huggingface-tgi----tgi) |
 | AWS Bedrock | `/bedrock/model` | `aws_bedrock.py` | [api-compatibility.md](api-compatibility.md#7-aws-bedrock----bedrockmodel) |
-| A2A | `/a2a` | `a2a.py` (optional) | see `a2a.py` module docstring |
+| A2A | `/a2a` | `a2a.py` (optional) | [a2a.md](a2a.md) |
+| UTCP | `/utcp`, `/tools/{name}` | `utcp.py` | [ai-agents.md](ai-agents.md) |
+| MCP | `/mcp` (with `--mcp`) | `mcp_server.py` (optional) | [ai-agents.md](ai-agents.md) |
 
 ## Architecture
 
