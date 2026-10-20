@@ -148,8 +148,8 @@ persona. Each persona keeps its own memory, so a user has a separate history
 with each persona.
 
 The server trusts the `user` value and does not check it, so this setup fits
-trusted clients only, such as the people of one household. For a server that
-untrusted clients share, keep `CHAT_MEMORY` off. See
+trusted clients only, such as the people of one household. Neither mode
+isolates untrusted clients from each other. See
 [Backend vs hosted agent](rag.md#backend-vs-hosted-agent--the-chat_memory-toggle).
 
 1. Save two personas in `~/personas`. This is `~/personas/ada.json`.

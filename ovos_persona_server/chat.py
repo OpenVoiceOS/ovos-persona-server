@@ -17,7 +17,7 @@ from typing import AsyncGenerator, List, Dict, Any, Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException, status, Depends, FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
-from ovos_bus_client.session import SessionManager
+from ovos_bus_client.session import Session
 from ovos_persona import Persona
 from ovos_plugin_manager.templates.agents import AgentMessage, MessageRole, ToolCall
 from pydantic import BaseModel, Field
@@ -30,7 +30,7 @@ from ovos_persona_server.server_tools import (
 from ovos_persona_server.persona import (
     get_default_persona, run_chat, run_stream, resolve_persona, available_personas,
     _flatten_text, _role, _messages_to_agent, _last_user_utterance,
-    memory_enabled, memory_session_id, PersonaNoAnswerError,
+    ANONYMOUS_MEMORY_KEY, memory_enabled, memory_session_id, PersonaNoAnswerError,
 )
 from ovos_persona_server.schemas.openai_chat import (
     CreateChatCompletionRequest, CreateChatCompletionResponse, CreateChatCompletionStreamResponse,
@@ -205,7 +205,7 @@ async def chat_completions(
                    "the 'tools' parameter cannot be honored.")
 
     if engine is not None and (client_specs or server_specs):
-        sess = SessionManager().get()
+        sess = Session(session_id=request_body.user or ANONYMOUS_MEMORY_KEY)
         tool_choice = request_body.tool_choice.model_dump(exclude_unset=True) \
             if hasattr(request_body.tool_choice, "model_dump") \
             else (request_body.tool_choice.value if request_body.tool_choice else None)
@@ -217,7 +217,7 @@ async def chat_completions(
         mem_sid = None
         if memory_enabled() and getattr(persona, "memory", None) is not None \
                 and not any(m.get("role") == "tool" for m in messages):
-            mem_sid = memory_session_id(persona, request_body.user or sess.session_id)
+            mem_sid = memory_session_id(persona, request_body.user or ANONYMOUS_MEMORY_KEY)
             utterance = _last_user_utterance(messages)
             convo = persona.memory.build_conversation_context(utterance, mem_sid)
         else:
