@@ -1,8 +1,21 @@
 # Changelog
 
+## [0.18.8a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.8a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a5...0.18.8a1)
+
+**Merged pull requests:**
+
+- fix: keep the space between streamed sentences [\#142](https://github.com/OpenVoiceOS/ovos-persona-server/pull/142) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- fix\(deps\): accept ovos-plugin-manager 3 [\#137](https://github.com/OpenVoiceOS/ovos-persona-server/pull/137) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.7a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a5) (2026-10-20)
 
-[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a3...0.18.7a5)
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a4...0.18.7a5)
+
+## [0.18.7a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a4) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a3...0.18.7a4)
 
 **Merged pull requests:**
 
@@ -378,14 +391,6 @@
 ## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.2a1)
-
-**Closed issues:**
-
-- PyPI release broken: wheel omits schemas subpackage + undeclared deps + wrong python floor [\#39](https://github.com/OpenVoiceOS/ovos-persona-server/issues/39)
-
-**Merged pull requests:**
-
-- fix: declare uvicorn+ovos-workshop deps; restore py3.9 f-string compat in chat.py [\#40](https://github.com/OpenVoiceOS/ovos-persona-server/pull/40) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
 
