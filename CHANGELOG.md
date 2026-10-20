@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.7a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.6a1...0.18.7a1)
+
+**Merged pull requests:**
+
+- fix: publish an A2A agent card with the fields A2A 1.0 requires [\#132](https://github.com/OpenVoiceOS/ovos-persona-server/pull/132) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.6a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.6a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.5a1...0.18.6a1)
@@ -358,10 +366,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.6.0a1...0.7.0a1)
 
-**Merged pull requests:**
-
-- feat\(compat\): Anthropic Claude-compatible endpoints \(/anthropic/v1\) [\#30](https://github.com/OpenVoiceOS/ovos-persona-server/pull/30) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
@@ -373,10 +377,6 @@
 ## [0.5.2a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a2) (2026-06-11)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a1...0.5.2a2)
-
-**Merged pull requests:**
-
-- refactor: vendor-prefixed OpenAI/Ollama routers + deprecated legacy paths [\#29](https://github.com/OpenVoiceOS/ovos-persona-server/pull/29) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
 
