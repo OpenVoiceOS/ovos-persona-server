@@ -140,6 +140,78 @@ the single shared embeddings backend (see [embeddings.md](embeddings.md)), so th
 
 ---
 
+## Memory per user
+
+With `CHAT_MEMORY=transparent`, the server keeps the history of each caller.
+The OpenAI `user` field selects the caller, and the `model` field selects the
+persona. Each persona keeps its own memory, so a user has a separate history
+with each persona.
+
+The server trusts the `user` value and does not check it, so this setup fits
+trusted clients only, such as the people of one household. For a server that
+untrusted clients share, keep `CHAT_MEMORY` off. See
+[Backend vs hosted agent](rag.md#backend-vs-hosted-agent--the-chat_memory-toggle).
+
+1. Save two personas in `~/personas`. This is `~/personas/ada.json`.
+   `~/personas/bo.json` is the same, with the name `bo` and the system prompt
+   changed to the name Bo:
+
+    ```json
+    {
+      "name": "ada",
+      "handlers": ["ovos-chat-openai-plugin"],
+      "ovos-chat-openai-plugin": {
+        "api_url": "https://llama.smartgic.io/v1",
+        "key": "sk-none",
+        "model": "qwen2.5:7b",
+        "system_prompt": "Your name is Ada. You answer in at most fifteen words."
+      }
+    }
+    ```
+
+2. Install and start the server:
+
+    ```bash
+    pip install --pre ovos-persona-server ovos-openai-plugin
+    CHAT_MEMORY=transparent ovos-persona-server --personas-dir ~/personas
+    ```
+
+3. In a second terminal, send the questions:
+
+    ```bash
+    ask() {
+      curl -s localhost:8337/openai/v1/chat/completions \
+        -H 'content-type: application/json' \
+        -d "{\"model\":\"$1\",\"user\":\"$2\",\"messages\":[{\"role\":\"user\",\"content\":\"$3\"}]}" |
+        python3 -c 'import sys,json; print(json.load(sys.stdin)["choices"][0]["message"]["content"])'
+    }
+    ask ada alice "Remember this: my cat is called Pixel. Reply only with OK."
+    ask ada bob "Remember this: my favourite colour is green. Reply only with OK."
+    ask ada alice "What is my cat called? Answer with the name only."
+    ask ada bob "What is my cat called? If you do not know, say UNKNOWN."
+    ask bo alice "What is my cat called? If you do not know, say UNKNOWN."
+    ```
+
+The output of a run with two personas, `ada` and `bo`, each with the default
+short-term memory:
+
+```
+OK, I'll remember that your cat's name is Pixel.
+OK, I've noted that your favourite colour is indeed green.
+Pixel
+UNKNOWN
+I don't have that information, so it's UNKNOWN.
+```
+
+Alice gets her answer from `ada`. Bob does not get Alice's answer. `bo` does
+not see what Alice told `ada`.
+
+A request with no `user` field uses one shared default session, so send a
+`user` value for each person. For memory that survives a restart, and for
+retrieval memories that several users share, see
+[Set up persona memory](https://github.com/OpenVoiceOS/ovos-memory-plugins/blob/dev/docs/set-up-memory.md)
+in `ovos-memory-plugins`.
+
 ## Isolation between personas
 
 Each persona is a separate `Persona` instance with its own solver chain and its
