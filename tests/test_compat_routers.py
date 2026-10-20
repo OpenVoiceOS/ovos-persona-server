@@ -16,7 +16,7 @@ import json
 from typing import Dict, Generator, List
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.testclient import TestClient
 
 
@@ -46,12 +46,18 @@ def _override_persona():
     return FAKE_PERSONA
 
 
+def _no_embeddings_backend():
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                        detail="No embeddings backend available")
+
+
 # ---------------------------------------------------------------------------
 # App builder
 # ---------------------------------------------------------------------------
 
 def _make_app() -> FastAPI:
     from ovos_persona_server.persona import get_default_persona
+    from ovos_persona_server.embeddings import get_embeddings_backend
     from ovos_persona_server.chat import chat_router
     from ovos_persona_server.ollama import ollama_router
     from ovos_persona_server.deprecated_routers import (
@@ -65,6 +71,7 @@ def _make_app() -> FastAPI:
     register_deprecated_routes(app)         # /v1/... and /api/... (deprecated)
     add_deprecation_middleware(app)
     app.dependency_overrides[get_default_persona] = _override_persona
+    app.dependency_overrides[get_embeddings_backend] = _no_embeddings_backend
     return app
 
 
@@ -225,7 +232,7 @@ class TestOllamaRouter:
     def test_embeddings_no_solver_returns_501(self, client):
         resp = client.post(
             "/ollama/api/embeddings",
-            json={"model": "fake-persona", "input": "hello"},
+            json={"model": "fake-persona", "prompt": "hello"},
         )
         assert resp.status_code == 501
 
