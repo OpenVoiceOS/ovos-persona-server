@@ -105,6 +105,10 @@ for r in hits.data:
     print(r.score, r.file_id)
 ```
 
+`score` is a similarity, as in the OpenAI API: the best hit has the highest score. The server computes it as `1 - distance` from the vector database, which is the cosine similarity for the cosine space of the reference plugins.
+
+Deleting a file with `client.files.delete(file_id)` also removes it from every vector store that holds it, so its chunks stop answering searches. Uploads are deduplicated by content: two uploads of the same bytes get the same file id.
+
 ## Using RAG as a persona memory plugin
 
 [`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin) ships
@@ -125,20 +129,27 @@ plugin):
   "ovos-openai-rag-memory-plugin": {
     "api_url": "http://localhost:8337/openai/v1",
     "vector_store_id": "vs_...",
-    "inject_mode": "system",
+    "inject_mode": "user",
     "retrieval": {"max_num_results": 5}
   }
 }
 ```
 
-`inject_mode` selects how retrieved context enters the prompt (`system` — a separate
-system message, default; `system_prompt`; `developer`; or `user`), plus configurable
-retrieval and formatting — see the plugin's module docstring. Requires `ovos-persona`
-with memory-plugin config passing.
+`inject_mode` selects how the retrieved context enters the prompt: `system` (a separate system message, the plugin default), `system_prompt`, `developer` or `user`. The chat engine must keep the message that carries the context. `ovos-chat-openai-plugin` drops client system messages unless `allow_system_prompts` is `true`, so with its default the `system` mode loses the context and the model does not see it.
+
+A persona was asked "What is the name of the office cat?". The name is only in a file in the vector store:
+
+| Config | Answer |
+| --- | --- |
+| `inject_mode: "system"`, `allow_system_prompts` not set | `I don't have any information about an office cat. ...` |
+| `inject_mode: "user"` | `The name of the office cat is Bartolomeu.` |
+| `inject_mode: "system"`, `allow_system_prompts: true` | `The name of the office cat is Bartolomeu.` |
+
+Use `inject_mode: "user"` with `ovos-chat-openai-plugin`, or set `allow_system_prompts: true` in its config. `retrieval.min_score` drops hits below a similarity score. The plugin's own docs list the other retrieval and formatting options. The plugin needs an `ovos-persona` version that passes the memory-plugin config.
 
 See [`examples/`](../examples/) for runnable flows and a ready persona config.
 
-## Backend vs hosted agent — the `CHAT_MEMORY` toggle
+## Backend vs hosted agent: the `CHAT_MEMORY` toggle
 
 Whether the chat endpoints apply that `memory_module` (RAG or short/long-term
 memory) on the way in is a **server-side deployment choice**, not a per-request one.
@@ -150,10 +161,10 @@ It is governed by the `CHAT_MEMORY` environment variable:
 | `transparent` | **Hosted agent** | The server owns state: it treats the latest user message as the new turn, folds the persona's `memory_module` (history + RAG) into every request keyed by session, and persists the exchange for the next call. |
 
 ```bash
-# backend (multi-user / drop-in OpenAI replacement) — the default
+# backend (multi-user / drop-in OpenAI replacement): the default
 ovos-persona-server --persona kb.json
 
-# single-user hosted agent — transparent server-side memory/RAG
+# single-user hosted agent: transparent server-side memory/RAG
 CHAT_MEMORY=transparent ovos-persona-server --persona kb.json
 ```
 
@@ -184,7 +195,7 @@ Anthropic, …), since they all route through the same persona chat path.
 
 ## Endpoint reference
 
-### Files — `/openai/v1/files`
+### Files: `/openai/v1/files`
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -194,7 +205,7 @@ Anthropic, …), since they all route through the same persona chat path.
 | GET | `/openai/v1/files/{file_id}/content` | Download file content |
 | DELETE | `/openai/v1/files/{file_id}` | Delete a file |
 
-### Vector stores — `/openai/v1/vector_stores`
+### Vector stores: `/openai/v1/vector_stores`
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -216,8 +227,7 @@ Legacy `/v1/...` aliases remain (with a `Deprecation` header) — see
   store drops the collection.
 - Chunking and reranking come from `ovos-document-chunkers` and an OVOS reranker
   plugin (the `[rag]` extra).
-- Image embeddings are not yet wired (text only); `encoding_format="base64"` on the
-  OpenAI embeddings endpoint is not yet implemented.
+- The embeddings endpoint embeds text only. `encoding_format="base64"` works.
 - The vector DB plugin must expose the collection API (`create_collection`,
   collection-scoped `query`); `ovos-chromadb-embeddings-plugin` ≥ 0.3.x and
   `ovos-qdrant-embeddings-plugin` are tested.
