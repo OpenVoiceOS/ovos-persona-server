@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.7a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a4) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a3...0.18.7a4)
+
+**Merged pull requests:**
+
+- test: isolate compat router embeddings tests from the installed backend [\#141](https://github.com/OpenVoiceOS/ovos-persona-server/pull/141) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- docs: memory per user on a multi-persona server, allow\_system\_prompts in the RAG recipe [\#140](https://github.com/OpenVoiceOS/ovos-persona-server/pull/140) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.7a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a3) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a2...0.18.7a3)
@@ -334,17 +343,9 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a1...0.12.0a2)
 
-**Merged pull requests:**
-
-- docs: user-facing documentation for all API surfaces [\#36](https://github.com/OpenVoiceOS/ovos-persona-server/pull/36) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.12.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.11.0a1...0.12.0a1)
-
-**Merged pull requests:**
-
-- feat: expose OPM tool plugins via MCP + UTCP [\#37](https://github.com/OpenVoiceOS/ovos-persona-server/pull/37) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.11.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.11.0a1) (2026-06-12)
 
@@ -369,10 +370,6 @@
 ## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
-
-**Merged pull requests:**
-
-- feat: A2A server endpoint \(/a2a\) with agent card + executor [\#35](https://github.com/OpenVoiceOS/ovos-persona-server/pull/35) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.2a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a2) (2026-06-11)
 
