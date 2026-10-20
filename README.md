@@ -283,7 +283,7 @@ installed, an `ovos-mcp-toolbox` or `ovos-utcp-toolbox` section in the persona
 file gives the persona the tools of another MCP server or UTCP manual.
 
 [docs/ai-agents.md](docs/ai-agents.md) has a recipe for each case: Claude Code,
-Claude Desktop, a persona that uses other servers, UTCP and MCP clients, Docker,
+Claude Desktop, opencode, Mistral Vibe, a persona that uses other servers, UTCP and MCP clients, Docker,
 reverse proxies and security. For a worked example of a local model answering
 from Wikipedia, see [docs/local-llm-wikipedia-tools.md](docs/local-llm-wikipedia-tools.md).
 
@@ -378,8 +378,7 @@ print([(h.file_id, h.score) for h in hits.data])
 For conversational use, the companion [`ovos-openai-plugin`](https://github.com/OpenVoiceOS/ovos-openai-plugin)
 ships `PersonaServerRAGMemory` — a persona **memory plugin** that searches a vector
 store and injects the retrieved context, composing with any chat backend. See
-[docs/rag.md](docs/rag.md#using-rag-as-a-persona-memory-plugin) and
-[examples/rag_memory_plugin.py](examples/rag_memory_plugin.py).
+[docs/rag.md](docs/rag.md#using-rag-as-a-persona-memory-plugin).
 
 > **Backend vs hosted agent.** By default the chat endpoints are a **stateless
 > backend** (`CHAT_MEMORY=off`): the client owns conversation state and drives the
