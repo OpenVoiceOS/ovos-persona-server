@@ -34,13 +34,13 @@ class Settings:
                            memory/RAG plugin to incoming requests. ``"off"`` (default) is
                            the *backend* mode: requests are a stateless passthrough, the
                            client owns conversation state and drives the Files / Vector-Stores
-                           endpoints itself. ``"transparent"`` is the single-user *hosted
-                           agent* mode: the server keys history by session (the OpenAI
+                           endpoints itself. ``"transparent"`` is the *hosted agent* mode
+                           for one user or several trusted users: the server keys history by session (the OpenAI
                            ``user`` field when present, else a default session) and folds the
                            persona's ``memory_module`` into every turn. Loaded from the
-                           CHAT_MEMORY environment variable. Leave ``"off"`` for multi-user /
-                           drop-in-OpenAI-replacement deployments (shared server memory would
-                           leak across users).
+                           CHAT_MEMORY environment variable. The server trusts the ``user``
+                           field and does not check it, so leave ``"off"`` for untrusted
+                           clients and drop-in-OpenAI-replacement deployments.
         system_prompt_strategy (str): How a client-supplied ``system`` message in an
                            incoming request is handled. ``"ignore"`` (default) drops it and
                            uses only the persona's own ``system_prompt`` (preserves existing

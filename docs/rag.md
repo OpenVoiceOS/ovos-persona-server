@@ -121,6 +121,12 @@ plugin):
 {
   "name": "kb-assistant",
   "solvers": ["ovos-chat-openai-plugin"],
+  "ovos-chat-openai-plugin": {
+    "api_url": "http://localhost:8080/v1",
+    "key": "sk-none",
+    "model": "my-model",
+    "allow_system_prompts": true
+  },
   "memory_module": "ovos-openai-rag-memory-plugin",
   "ovos-openai-rag-memory-plugin": {
     "api_url": "http://localhost:8337/openai/v1",
@@ -130,6 +136,11 @@ plugin):
   }
 }
 ```
+
+`ovos-chat-openai-plugin` removes system messages unless `allow_system_prompts`
+is `true`. With the default `inject_mode`, the retrieved context is a system
+message, so without that setting the model never sees it. The log then says
+`dropped 1 system message(s) before the request`.
 
 `inject_mode` selects how retrieved context enters the prompt (`system` — a separate
 system message, default; `system_prompt`; `developer`; or `user`), plus configurable
@@ -160,12 +171,14 @@ CHAT_MEMORY=transparent ovos-persona-server --persona kb.json
 **Why off by default.** As a *drop-in OpenAI replacement* the server must behave like
 a backend: a shared server-side memory would leak conversation across callers in a
 multi-user deployment, and the OpenAI contract expects the client to send history. So
-`off` is correct unless you are deploying a single-user agent.
+`off` is correct unless the server fits one user or several trusted users. The server
+trusts the `user` field and does not check it, so keep `off` for untrusted clients.
 
 **Per-user namespacing.** In `transparent` mode the OpenAI `user` field (when present)
 is used as the memory session key, so distinct callers keep separate histories; absent
 it, a single default session is used. Even so, `transparent` is intended for the
-hosted-agent case — keep it `off` for general multi-tenant backends.
+hosted-agent case for one user or several trusted users. The server does not check
+the `user` field, so keep it `off` for untrusted clients and general multi-tenant backends.
 
 The legacy `/v1/completions` surface reads the same `user` field. On the A2A
 surface the key is `contextId`, the conversation identifier the protocol already

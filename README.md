@@ -383,8 +383,9 @@ store and injects the retrieved context, composing with any chat backend. See
 > **Backend vs hosted agent.** By default the chat endpoints are a **stateless
 > backend** (`CHAT_MEMORY=off`): the client owns conversation state and drives the
 > Files / Vector-Stores endpoints itself — the correct behaviour for a drop-in
-> OpenAI replacement or any multi-user deployment. Set `CHAT_MEMORY=transparent` to
-> run a **single-user hosted agent** where the server folds the persona's
+> OpenAI replacement or any deployment with untrusted clients. Set `CHAT_MEMORY=transparent`
+> to run a **hosted agent for one user or several trusted users** (the server trusts the
+> `user` field and does not check it) where the server folds the persona's
 > `memory_module` (history + RAG) into every turn and persists it per session. See
 > [docs/rag.md](docs/rag.md#backend-vs-hosted-agent--the-chat_memory-toggle).
 
