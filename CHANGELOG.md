@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.6a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.6a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.5a1...0.18.6a1)
+
+**Merged pull requests:**
+
+- fix: keep log lines off stdout in the stdio MCP server [\#130](https://github.com/OpenVoiceOS/ovos-persona-server/pull/130) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.5a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a2...0.18.5a1)
@@ -381,7 +389,6 @@
 **Merged pull requests:**
 
 - fix: declare uvicorn+ovos-workshop deps; restore py3.9 f-string compat in chat.py [\#40](https://github.com/OpenVoiceOS/ovos-persona-server/pull/40) ([JarbasAl](https://github.com/JarbasAl))
-- chore: migrate setup.py→pyproject.toml, consolidate CI workflows [\#28](https://github.com/OpenVoiceOS/ovos-persona-server/pull/28) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
 
