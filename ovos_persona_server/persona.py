@@ -6,6 +6,7 @@ including loading the default persona and providing its status.
 """
 
 import json
+import unicodedata
 from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import HTTPException, status
@@ -276,7 +277,7 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
 
         def _streamer() -> Iterable[str]:
             chunks: List[str] = []
-            for tok in persona.stream(context, sess=sess):
+            for tok in _separate_sentences(persona.stream(context, sess=sess)):
                 chunks.append(tok)
                 yield tok
             if not any(chunks):
@@ -288,7 +289,26 @@ def run_stream(persona: Persona, messages: List[dict], sess: Optional[Session] =
                  AgentMessage(MessageRole.ASSISTANT, "".join(chunks))], sid)
 
         return _streamer()
-    return _require_stream_answer(persona, persona.stream(_messages_to_agent(messages), sess=sess))
+    return _require_stream_answer(
+        persona, _separate_sentences(persona.stream(_messages_to_agent(messages), sess=sess)))
+
+
+def _separate_sentences(chunks: Iterable[str]) -> Iterable[str]:
+    """Restore the space between streamed sentences.
+
+    ``Persona.stream`` yields sentences stripped of the whitespace between them.
+    Scripts that write sentences without a space (Chinese, Japanese) get none.
+    """
+    last = ""
+    for chunk in chunks:
+        tail = last.rstrip("”’」』）》】〕〉…") or last
+        cjk = bool(tail) and unicodedata.east_asian_width(tail[-1]) in "WF" \
+            and unicodedata.category(tail[-1]) != "So"
+        if chunk and last and not (last[-1].isspace() or chunk[0].isspace() or cjk):
+            chunk = " " + chunk
+        if chunk:
+            last = chunk
+        yield chunk
 
 
 def _require_stream_answer(persona: Persona, chunks: Iterable[str]) -> Iterable[str]:

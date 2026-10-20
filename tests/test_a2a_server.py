@@ -432,3 +432,50 @@ class TestCreateA2AApplication:
         assert resp.status_code == 200
         body = resp.json()
         assert "error" not in body, body
+
+
+class TestArtifactSentenceSpacing:
+    """Sentence chunks are appended by the client, so the server must keep the
+    space between them without doubling one that is already there."""
+
+    @staticmethod
+    def _artifact_text(sentences):
+        from a2a.client import ClientConfig, create_client
+        from a2a.types import Message, Part, Role, SendMessageRequest
+
+        persona = _fake_persona(sentences, name="spacing-persona")
+        a2a_app = a2a_mod.create_a2a_application(persona, "http://testserver/a2a")
+        fastapi_app = FastAPI()
+        fastapi_app.mount("/a2a", a2a_app)
+
+        async def _run():
+            transport = httpx.ASGITransport(app=fastapi_app)
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as hc:
+                client = await create_client(
+                    a2a_app.agent_card,
+                    client_config=ClientConfig(httpx_client=hc, streaming=False),
+                )
+                req = SendMessageRequest(message=Message(
+                    role=Role.ROLE_USER, parts=[Part(text="who")], message_id="m1"))
+                return [e async for e in client.send_message(req)]
+
+        task = asyncio.run(_run())[0].task
+        return "".join(p.text for p in task.artifacts[0].parts)
+
+    def test_two_sentences_are_separated_by_one_space(self):
+        text = self._artifact_text(["She is Diana.", "This is her story."])
+        assert text == "She is Diana. This is her story."
+
+    def test_trailing_space_is_not_doubled(self):
+        text = self._artifact_text(["She is Diana. ", "This is her story."])
+        assert text == "She is Diana. This is her story."
+
+    def test_leading_space_is_not_doubled(self):
+        text = self._artifact_text(["She is Diana.", " This is her story."])
+        assert text == "She is Diana. This is her story."
+
+    def test_empty_chunks_add_no_space(self):
+        text = self._artifact_text(["One.", "", "Two."])
+        assert text == "One. Two."
