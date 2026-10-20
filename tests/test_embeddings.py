@@ -153,3 +153,28 @@ def test_persona_solver_embedder_none_without_persona(monkeypatch):
     import ovos_persona_server.persona as persona_mod
     monkeypatch.setattr(persona_mod, "default_persona", None)
     assert _persona_solver_embedder() is None
+
+
+@pytest.mark.parametrize("path,body", [
+    ("/openai/v1/embeddings", {"model": "m", "input": "hello"}),
+    ("/ollama/api/embed", {"model": "m", "input": "hello"}),
+    ("/ollama/api/embeddings", {"model": "m", "prompt": "hello"}),
+])
+def test_no_backend_available_returns_501(monkeypatch, path, body):
+    import ovos_persona_server.embeddings as embeddings_mod
+    import ovos_persona_server.persona as persona_mod
+
+    def plugin_missing(name):
+        raise RuntimeError("plugin not installed")
+
+    monkeypatch.setattr(embeddings_mod, "load_text_embeddings_plugin", plugin_missing)
+    monkeypatch.setattr(embeddings_mod, "text_embeddings", None)
+    monkeypatch.setattr(persona_mod, "default_persona", None)
+    app = FastAPI()
+    app.include_router(chat_router)
+    app.include_router(ollama_router)
+
+    resp = TestClient(app).post(path, json=body)
+
+    assert resp.status_code == 501
+    assert "No embeddings backend available" in resp.json()["detail"]
