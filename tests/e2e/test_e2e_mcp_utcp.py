@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 import socket
 import threading
 import time
@@ -44,6 +45,9 @@ from fastapi.middleware.cors import CORSMiddleware
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+_mcp_available = importlib.util.find_spec("fastmcp") is not None
+
 
 def _free_port() -> int:
     with socket.socket() as s:
@@ -67,16 +71,16 @@ def _make_stub_app() -> FastAPI:
 
     # Patch the tool registry to return an empty dict — no real tools needed
     with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
-        from ovos_persona_server.utcp import utcp_router
-        app.include_router(utcp_router)
+        from ovos_persona_server.utcp import make_utcp_router
+        app.include_router(make_utcp_router())
 
-    # Mount MCP if available using the mount_mcp_on_app helper, which builds
+    # Mount MCP if available using the mount_mcp helper, which builds
     # the fastmcp streamable-HTTP ASGI app and chains its lifespan into the
     # host FastAPI app's lifespan.
     try:
-        from ovos_persona_server.mcp_server import mount_mcp_on_app
+        from ovos_persona_server.mcp_server import mount_mcp
         with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
-            mount_mcp_on_app(app)
+            mount_mcp(app)
     except ImportError:
         pass
 
@@ -114,6 +118,12 @@ def _start_server(app, health_path: str) -> tuple:
 @pytest.fixture(scope="module")
 def live_server():
     """Boot the stub persona app and serve on a free port (UTCP tests)."""
+    # Import the protocol modules before patching: a module imported under
+    # the patch binds the mock for good, and later fixtures that build a real
+    # registry would get an empty one.
+    importlib.import_module("ovos_persona_server.utcp")
+    if _mcp_available:
+        importlib.import_module("ovos_persona_server.mcp_server")
     with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}), \
          patch("ovos_persona_server.utcp._registry", {}), \
          patch("ovos_persona_server.utcp._registry_ready", False):
@@ -134,12 +144,12 @@ def live_server():
 def mcp_server():
     """Run MCP as a standalone Starlette app to avoid sub-app lifespan issues."""
     try:
-        from ovos_persona_server.mcp_server import build_mcp_server
+        from ovos_persona_server.mcp_server import build_mcp
     except ImportError:
         pytest.skip("mcp extra not installed")
 
     with patch("ovos_persona_server.tools.get_flat_tool_registry", return_value={}):
-        mcp = build_mcp_server()
+        mcp = build_mcp()
     # Standalone: serve MCP at root "/" so the streamable transport default
     # /mcp path inside FastMCP maps to exactly /mcp on the outer app.
     mcp_app = mcp.http_app(path="/mcp", transport="streamable-http")
@@ -210,8 +220,8 @@ def live_tool_server():
     utcp_module._registry = _build_fake_registry()
     utcp_module._registry_ready = True
     app = FastAPI()
-    app.include_router(utcp_module.utcp_router)
-    base_url, server, thread = _start_server(app, health_path="/tools/manual")
+    app.include_router(utcp_module.make_utcp_router())
+    base_url, server, thread = _start_server(app, health_path="/utcp")
     yield base_url
     server.should_exit = True
     thread.join(timeout=5)
@@ -230,7 +240,7 @@ class TestUtcpClientE2E:
                 manual_call_templates=[{
                     "name": "persona",
                     "call_template_type": "http",
-                    "url": f"{base_url}/tools/manual",
+                    "url": f"{base_url}/utcp",
                     "http_method": "GET",
                 }]))
             names = sorted(t.name for t in await client.search_tools("", limit=10))
@@ -253,7 +263,6 @@ class TestUtcpClientE2E:
 # MCP end-to-end
 # ---------------------------------------------------------------------------
 
-_mcp_available = importlib.util.find_spec("fastmcp") is not None
 mcp_required = pytest.mark.skipif(
     not _mcp_available,
     reason="fastmcp package not installed",
@@ -288,3 +297,48 @@ class TestMcpE2E:
         tools = asyncio.run(_run())
         # No real tool plugins installed — list may be empty
         assert isinstance(tools, list)
+
+
+@pytest.fixture(scope="module")
+def mounted_mcp_server():
+    """Uvicorn serving mount_mcp over the echo/add fake toolbox."""
+    from ovos_persona_server.mcp_server import mount_mcp
+    from tests.test_tools import FakeToolBox
+
+    app = FastAPI()
+    with patch("ovos_persona_server.tools.find_plugins",
+               return_value={"fake_toolbox": FakeToolBox}):
+        mount_mcp(app)
+    base_url, server, thread = _start_server(app, health_path="/mcp")
+    yield f"{base_url}/mcp"
+    server.should_exit = True
+    thread.join(timeout=5)
+
+
+@mcp_required
+class TestMcpClientE2E:
+    """The real MCP client calls the persona tools through mount_mcp."""
+
+    def _call(self, url: str, tool: str, args: Dict[str, Any]):
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamable_http_client
+
+        async def run():
+            async with streamable_http_client(url) as streams:
+                async with ClientSession(streams[0], streams[1]) as session:
+                    await session.initialize()
+                    names = sorted(t.name for t in (await session.list_tools()).tools)
+                    return names, await session.call_tool(tool, args)
+
+        return asyncio.run(run())
+
+    def test_client_lists_and_calls_echo(self, mounted_mcp_server):
+        names, result = self._call(mounted_mcp_server, "echo", {"message": "hi"})
+        assert names == ["add", "echo"]
+        assert result.is_error is False
+        assert json.loads(result.content[0].text) == {"echo": "hi"}
+
+    def test_client_calls_add(self, mounted_mcp_server):
+        _, result = self._call(mounted_mcp_server, "add", {"a": 2, "b": 3})
+        assert json.loads(result.content[0].text) == {"result": 5.0}
+

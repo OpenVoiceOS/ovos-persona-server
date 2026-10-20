@@ -13,8 +13,8 @@
 MCP server that exposes installed OPM tool plugins as MCP tools.
 
 Each ``ToolBox`` plugin's tools are discovered at startup and registered with
-the ``fastmcp`` package.  The server is mounted on the FastAPI app at
-``/mcp`` (streamable-HTTP transport) so it shares the existing Uvicorn process.
+the ``fastmcp`` package. :func:`mount_mcp` serves them on the FastAPI app at
+``/mcp`` (streamable-HTTP transport) so they share the Uvicorn process.
 
 Usage (standalone, for an MCP client that supports the stdio transport)::
 
@@ -25,12 +25,14 @@ Usage (as part of the persona server, opt-in via ``--mcp`` even when the
 
     ovos-persona-server --persona mybot.json --mcp
 
-MCP clients connecting via SSE point at::
+MCP clients connect to::
 
-    http://<host>:<port>/mcp/sse
+    http://<host>:<port>/mcp
 """
 
 import json
+import warnings
+from contextlib import asynccontextmanager
 from typing import Any, Dict
 
 from fastmcp import FastMCP
@@ -39,9 +41,12 @@ from fastmcp.tools.function_tool import FunctionTool
 from ovos_utils.log import LOG
 
 from ovos_persona_server.tools import get_flat_tool_registry, invoke_tool, list_tool_schemas
+from ovos_persona_server.version import VERSION_MAJOR, VERSION_MINOR, __version__
+
+__all__ = ["build_mcp", "mount_mcp"]
 
 
-def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
+def build_mcp(name: str = "ovos-persona") -> FastMCP:
     """
     Construct and return a :class:`~fastmcp.FastMCP` instance with all
     installed OPM tool plugins registered as MCP tools.
@@ -55,7 +60,7 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
     Returns:
         Configured ``FastMCP`` server ready to be mounted or run standalone.
     """
-    mcp = FastMCP(name)
+    mcp = FastMCP(name, version=__version__)
 
     registry = get_flat_tool_registry()
     schemas = list_tool_schemas(registry)
@@ -106,26 +111,72 @@ def build_mcp_server(name: str = "ovos-persona-tools") -> FastMCP:
 
 
 
-def mount_mcp_on_app(app, path="/mcp", name="ovos-persona-tools"):
-    """Mount MCP streamable-HTTP transport at path with lifespan chaining."""
-    from contextlib import asynccontextmanager
-    mcp = build_mcp_server(name=name)
-    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+class _ExactPath:
+    """ASGI middleware that hands ``path`` to the mount as ``path/``.
+
+    A Starlette ``Mount(path)`` matches only ``path/...`` and answers
+    ``POST path`` with a 307 to ``path/``. Behind a TLS proxy that uvicorn
+    does not trust, that redirect names ``http://``, and MCP clients refuse
+    it. Rewriting the path before routing serves both spellings directly.
+    """
+
+    def __init__(self, app, path: str) -> None:
+        self.app = app
+        self.path = path
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and scope["path"] == self.path:
+            scope = dict(scope, path=self.path + "/",
+                         raw_path=(self.path + "/").encode())
+        await self.app(scope, receive, send)
+
+
+def mount_mcp(app, path: str = "/mcp", name: str = "ovos-persona") -> None:
+    """Mount the MCP streamable-HTTP transport on *app* at exactly *path*.
+
+    The sub-app is built with ``path="/"`` so the endpoint is *path* and not
+    *path*/mcp, and its lifespan, which runs the MCP session manager, is
+    chained into the host app's lifespan because Starlette does not start a
+    mounted app's lifespan. ``POST path`` and ``POST path/`` both reach the
+    transport with no redirect.
+    """
+    mcp_app = build_mcp(name=name).http_app(path="/", transport="streamable-http")
     app.mount(path, mcp_app)
-    _orig = app.router.lifespan_context
+    app.add_middleware(_ExactPath, path=path)
+    host_lifespan = app.router.lifespan_context
+
     @asynccontextmanager
-    async def _wrap(h):
-        async with _orig(h):
+    async def _lifespan_with_mcp(host_app):
+        async with host_lifespan(host_app):
             async with mcp_app.lifespan(mcp_app):
                 yield
-    app.router.lifespan_context = _wrap
+
+    app.router.lifespan_context = _lifespan_with_mcp
     LOG.info("MCP server mounted at %s (streamable-HTTP)", path)
+
+
+def _deprecated(old: str, new: str) -> None:
+    warnings.warn(
+        f"{old} is deprecated, use {new}; "
+        f"it will be removed in {VERSION_MAJOR}.{VERSION_MINOR + 1}.0",
+        DeprecationWarning, stacklevel=3)
+
+
+def build_mcp_server(name: str = "ovos-persona") -> FastMCP:
+    """Deprecated: use :func:`build_mcp`."""
+    _deprecated("build_mcp_server", "build_mcp")
+    return build_mcp(name=name)
+
+
+def mount_mcp_on_app(app, path: str = "/mcp", name: str = "ovos-persona") -> None:
+    """Deprecated: use :func:`mount_mcp`."""
+    _deprecated("mount_mcp_on_app", "mount_mcp")
+    mount_mcp(app, path=path, name=name)
 
 
 def _run_stdio() -> None:
     """Entry point for the ``ovos-persona-tools-mcp`` console script (stdio)."""
-    server = build_mcp_server()
-    server.run(transport="stdio")
+    build_mcp().run(transport="stdio")
 
 
 if __name__ == "__main__":
