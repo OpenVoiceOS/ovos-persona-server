@@ -57,6 +57,8 @@ create_agent_card_routes = None
 create_jsonrpc_routes = None
 Task = None
 Starlette = None
+PROTOCOL_VERSION_0_3 = None
+PROTOCOL_VERSION_1_0 = None
 
 try:
     from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -75,6 +77,7 @@ try:
         TaskState,
         TaskStatus,
     )
+    from a2a.utils.constants import PROTOCOL_VERSION_0_3, PROTOCOL_VERSION_1_0
     from starlette.applications import Starlette
 
     _A2A_AVAILABLE = True
@@ -132,14 +135,23 @@ def _agent_card(persona: "Persona", base_url: str) -> "AgentCard":
                 id="chat",
                 name="Chat",
                 description="Multi-turn conversation with an OVOS persona",
+                tags=["chat", "conversation"],
                 input_modes=["text"],
                 output_modes=["text"],
             )
         ],
         default_input_modes=["text"],
         default_output_modes=["text"],
+        # The JSON-RPC endpoint speaks 1.0 and, through enable_v0_3_compat,
+        # 0.3. Each version is its own interface, most preferred first. The
+        # SDK builds the 0.3 fields of the card (url, preferredTransport,
+        # protocolVersion) from the 0.3 interface, so older clients still
+        # discover the agent.
         supported_interfaces=[
-            AgentInterface(url=rpc_url, protocol_binding="JSONRPC")
+            AgentInterface(url=rpc_url, protocol_binding="JSONRPC",
+                           protocol_version=PROTOCOL_VERSION_1_0),
+            AgentInterface(url=rpc_url, protocol_binding="JSONRPC",
+                           protocol_version=PROTOCOL_VERSION_0_3),
         ],
     )
 

@@ -146,6 +146,36 @@ class TestA2ASdkBrokenAtImport:
 # Agent card content
 # ---------------------------------------------------------------------------
 
+class TestAgentCardSpecCompliance:
+    """A2A 1.0 marks AgentInterface.protocolVersion and AgentSkill.tags as
+    REQUIRED, and section 5.7 says a required array MUST contain at least one
+    element."""
+
+    def _card(self):
+        return a2a_mod._agent_card(_fake_persona([]), "http://localhost:8337/a2a")
+
+    def test_card_passes_the_sdk_strict_required_field_check(self):
+        from a2a.utils.proto_utils import validate_proto_required_fields
+        validate_proto_required_fields(self._card())
+
+    def test_routes_log_no_spec_compliance_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            a2a_mod.create_a2a_application(_fake_persona([]), "http://localhost:8337/a2a")
+        assert not [r.message for r in caplog.records if "not spec-compliant" in r.message]
+
+    def test_interfaces_declare_1_0_then_0_3_on_one_endpoint(self):
+        interfaces = [(i.url, i.protocol_binding, i.protocol_version)
+                      for i in self._card().supported_interfaces]
+        assert interfaces == [("http://localhost:8337/a2a/", "JSONRPC", "1.0"),
+                              ("http://localhost:8337/a2a/", "JSONRPC", "0.3")]
+
+    def test_served_card_keeps_the_0_3_fields_for_older_clients(self):
+        from a2a.server.request_handlers.response_helpers import agent_card_to_dict
+        card = agent_card_to_dict(self._card())
+        assert (card["url"], card["preferredTransport"], card["protocolVersion"]) == (
+            "http://localhost:8337/a2a/", "JSONRPC", "0.3")
+
+
 class TestAgentCardContent:
     def test_agent_card_name_matches_persona(self):
         persona = _fake_persona([], name="my-persona")
@@ -194,12 +224,12 @@ class TestAgentCardContent:
         assert len(card.skills) >= 1
         assert card.skills[0].id == "chat"
 
-    def test_agent_card_builds_without_tags(self):
-        """AgentSkill has no required `tags` on a2a-sdk>=1.1.2; verify it
-        actually validates end to end via the real pydantic/protobuf model."""
+    def test_agent_card_skill_has_tags(self):
+        """A2A 1.0 marks AgentSkill.tags REQUIRED, and a required array MUST
+        contain at least one element."""
         persona = _fake_persona([], name="test")
         card = a2a_mod._agent_card(persona, "http://x")
-        assert card.skills[0].tags == [] or card.skills[0].tags is None or list(card.skills[0].tags) == []
+        assert list(card.skills[0].tags) == ["chat", "conversation"]
 
 
 # ---------------------------------------------------------------------------
