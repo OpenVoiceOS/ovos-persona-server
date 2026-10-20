@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.7a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a2) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a1...0.18.7a2)
+
+**Merged pull requests:**
+
+- docs: explain the MCP, UTCP and agent-tool user stories [\#134](https://github.com/OpenVoiceOS/ovos-persona-server/pull/134) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.7a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.6a1...0.18.7a1)
@@ -334,10 +342,6 @@
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.10.0a1...0.11.0a1)
 
-**Merged pull requests:**
-
-- feat\(compat\): Cohere-compatible endpoints \(/cohere/v1\) [\#32](https://github.com/OpenVoiceOS/ovos-persona-server/pull/32) ([JarbasAl](https://github.com/JarbasAl))
-
 ## [0.10.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.10.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.9.0a1...0.10.0a1)
@@ -357,10 +361,6 @@
 ## [0.8.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.8.0a1) (2026-06-12)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.7.0a1...0.8.0a1)
-
-**Merged pull requests:**
-
-- feat\(compat\): Google Gemini-compatible endpoints \(/gemini/v1beta\) [\#31](https://github.com/OpenVoiceOS/ovos-persona-server/pull/31) ([JarbasAl](https://github.com/JarbasAl))
 
 ## [0.7.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.7.0a1) (2026-06-12)
 
