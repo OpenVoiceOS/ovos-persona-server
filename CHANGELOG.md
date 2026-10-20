@@ -1,12 +1,19 @@
 # Changelog
 
+## [0.18.9a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.9a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.8a1...0.18.9a1)
+
+**Merged pull requests:**
+
+- fix: keep the space between streamed sentences [\#142](https://github.com/OpenVoiceOS/ovos-persona-server/pull/142) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.8a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.8a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a5...0.18.8a1)
 
 **Merged pull requests:**
 
-- fix: keep the space between streamed sentences [\#142](https://github.com/OpenVoiceOS/ovos-persona-server/pull/142) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 - fix\(deps\): accept ovos-plugin-manager 3 [\#137](https://github.com/OpenVoiceOS/ovos-persona-server/pull/137) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
 
 ## [0.18.7a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a5) (2026-10-20)
