@@ -1,0 +1,28 @@
+services:
+  ovos-persona:
+    build: .
+    image: ghcr.io/openvoiceos/ovos-persona-server:dev
+    ports:
+      - "8337:8337"
+    volumes:
+      # Edit config/persona.json to change the chat engine or its endpoint
+      # before docker compose up. The default points at the OpenVoiceOS
+      # gateway at https://llm.openvoiceos.pt/v1 (no API key required).
+      - ./config:/config
+    environment:
+      XDG_CONFIG_HOME: /config
+    command:
+      - "--persona"
+      - "/config/persona.json"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8337"
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8337/openai/v1/models')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped

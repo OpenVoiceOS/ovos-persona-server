@@ -1,12 +1,487 @@
 # Changelog
 
+## [0.18.11a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.11a1) (2026-10-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.10a1...0.18.11a1)
+
+**Merged pull requests:**
+
+- fix: emit each A2A sentence as the persona yields it [\#149](https://github.com/OpenVoiceOS/ovos-persona-server/pull/149) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.10a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.9a1...0.18.10a1)
+
+**Merged pull requests:**
+
+- fix: give each caller its own solver session [\#146](https://github.com/OpenVoiceOS/ovos-persona-server/pull/146) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.9a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.9a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.8a1...0.18.9a1)
+
+**Merged pull requests:**
+
+- fix: keep the space between streamed sentences [\#142](https://github.com/OpenVoiceOS/ovos-persona-server/pull/142) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.8a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.8a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a5...0.18.8a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): accept ovos-plugin-manager 3 [\#137](https://github.com/OpenVoiceOS/ovos-persona-server/pull/137) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.7a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a5) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a4...0.18.7a5)
+
+## [0.18.7a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a4) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a3...0.18.7a4)
+
+**Merged pull requests:**
+
+- test: isolate compat router embeddings tests from the installed backend [\#141](https://github.com/OpenVoiceOS/ovos-persona-server/pull/141) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- docs: memory per user on a multi-persona server, allow\_system\_prompts in the RAG recipe [\#140](https://github.com/OpenVoiceOS/ovos-persona-server/pull/140) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.7a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a3) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a2...0.18.7a3)
+
+**Merged pull requests:**
+
+- docs: add opencode and Mistral Vibe MCP client recipes [\#138](https://github.com/OpenVoiceOS/ovos-persona-server/pull/138) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.7a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a2) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.7a1...0.18.7a2)
+
+**Merged pull requests:**
+
+- docs: explain the MCP, UTCP and agent-tool user stories [\#134](https://github.com/OpenVoiceOS/ovos-persona-server/pull/134) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.7a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.7a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.6a1...0.18.7a1)
+
+**Merged pull requests:**
+
+- fix: publish an A2A agent card with the fields A2A 1.0 requires [\#132](https://github.com/OpenVoiceOS/ovos-persona-server/pull/132) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.6a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.6a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.5a1...0.18.6a1)
+
+**Merged pull requests:**
+
+- fix: keep log lines off stdout in the stdio MCP server [\#130](https://github.com/OpenVoiceOS/ovos-persona-server/pull/130) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.5a1) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a2...0.18.5a1)
+
+**Merged pull requests:**
+
+- fix: start without A2A when a2a-sdk fails inside its own import [\#128](https://github.com/OpenVoiceOS/ovos-persona-server/pull/128) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a2) (2026-10-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.4a1...0.18.4a2)
+
+**Merged pull requests:**
+
+- refactor: move the agent protocols to the shared server layout [\#127](https://github.com/OpenVoiceOS/ovos-persona-server/pull/127) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.4a1) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.3a1...0.18.4a1)
+
+**Merged pull requests:**
+
+- fix: report a failed MCP tool call with isError true [\#122](https://github.com/OpenVoiceOS/ovos-persona-server/pull/122) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.3a1) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.2a1...0.18.3a1)
+
+**Merged pull requests:**
+
+- fix: configure toolboxes from the persona the CLI loaded [\#121](https://github.com/OpenVoiceOS/ovos-persona-server/pull/121) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.2a1) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.1a2...0.18.2a1)
+
+**Merged pull requests:**
+
+- fix: serve a UTCP 1.0 manual that the UTCP client can load [\#120](https://github.com/OpenVoiceOS/ovos-persona-server/pull/120) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a2) (2026-10-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.1a1...0.18.1a2)
+
+**Merged pull requests:**
+
+- build: floor the agent-protocol dependencies at their latest releases [\#119](https://github.com/OpenVoiceOS/ovos-persona-server/pull/119) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.1a1) (2026-09-25)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.0a1...0.18.1a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): fastmcp 4 in both extras, and stop pinning a tuple we do not own [\#117](https://github.com/OpenVoiceOS/ovos-persona-server/pull/117) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.18.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.0a1) (2026-09-18)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.12a1...0.18.0a1)
+
+**Merged pull requests:**
+
+- feat: Docker image, compose file and container docs for the persona server [\#107](https://github.com/OpenVoiceOS/ovos-persona-server/pull/107) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.12a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.12a1) (2026-09-17)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.11a1...0.17.12a1)
+
+**Merged pull requests:**
+
+- fix: correct persona solver plugin names in README [\#110](https://github.com/OpenVoiceOS/ovos-persona-server/pull/110) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.11a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.11a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.10a1...0.17.11a1)
+
+## [0.17.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.10a1) (2026-09-16)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.9a1...0.17.10a1)
+
+**Merged pull requests:**
+
+- fix: untrack a virtual environment committed to the tree [\#111](https://github.com/OpenVoiceOS/ovos-persona-server/pull/111) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+- fix: the test extra installs what the suite imports [\#109](https://github.com/OpenVoiceOS/ovos-persona-server/pull/109) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.9a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.9a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.8a2...0.17.9a1)
+
+**Merged pull requests:**
+
+- fix: return vector-store search hits in the OpenAI content-parts shape [\#102](https://github.com/OpenVoiceOS/ovos-persona-server/pull/102) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.8a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.8a2) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.8a1...0.17.8a2)
+
+**Merged pull requests:**
+
+- docs: point manual links at OpenVoiceOS/beta-technical-manual [\#98](https://github.com/OpenVoiceOS/ovos-persona-server/pull/98) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.8a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.8a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.7a1...0.17.8a1)
+
+**Merged pull requests:**
+
+- fix: report a persona backend HTTP failure as 502 with the upstream status [\#101](https://github.com/OpenVoiceOS/ovos-persona-server/pull/101) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.7a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.7a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.6a1...0.17.7a1)
+
+**Merged pull requests:**
+
+- fix: serve the OpenAI files and vector\_stores collections without a trailing slash [\#100](https://github.com/OpenVoiceOS/ovos-persona-server/pull/100) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.6a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.6a1) (2026-09-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.5a2...0.17.6a1)
+
+**Merged pull requests:**
+
+- fix: honor transparent memory on the tool-capable chat branch [\#99](https://github.com/OpenVoiceOS/ovos-persona-server/pull/99) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
+## [0.17.5a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a2) (2026-08-31)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.5a1...0.17.5a2)
+
+**Merged pull requests:**
+
+- docs: worked example of server-side Wikipedia tool calling with a local LLM [\#85](https://github.com/OpenVoiceOS/ovos-persona-server/pull/85) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.5a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.5a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.4a1...0.17.5a1)
+
+**Merged pull requests:**
+
+- fix: accept OpenAI's standard tool\_choice="required" spelling [\#92](https://github.com/OpenVoiceOS/ovos-persona-server/pull/92) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.4a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.3a1...0.17.4a1)
+
+**Merged pull requests:**
+
+- fix: honor tool\_choice instead of silently ignoring it [\#90](https://github.com/OpenVoiceOS/ovos-persona-server/pull/90) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.3a1) (2026-08-15)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.2a1...0.17.3a1)
+
+**Merged pull requests:**
+
+- fix: no-answer persona returns 422 with a clear message, not a 500 traceback [\#87](https://github.com/OpenVoiceOS/ovos-persona-server/pull/87) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.2a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.1a1...0.17.2a1)
+
+**Merged pull requests:**
+
+- fix: migrate A2A adapter to a2a-sdk\>=1.1.2 so it actually loads [\#88](https://github.com/OpenVoiceOS/ovos-persona-server/pull/88) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.1a1) (2026-08-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.17.0a1...0.17.1a1)
+
+**Merged pull requests:**
+
+- fix: key transparent memory on the caller identity these surfaces already receive [\#86](https://github.com/OpenVoiceOS/ovos-persona-server/pull/86) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.17.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.17.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.16.0a1...0.17.0a1)
+
+**Merged pull requests:**
+
+- feat: make MCP mounting an explicit --mcp opt-in flag [\#83](https://github.com/OpenVoiceOS/ovos-persona-server/pull/83) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.16.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.16.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.1a1...0.16.0a1)
+
+**Merged pull requests:**
+
+- feat\(openai\): configurable client system-prompt strategy \(ignore/replace/append\) [\#74](https://github.com/OpenVoiceOS/ovos-persona-server/pull/74) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.15.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.1a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.15.0a1...0.15.1a1)
+
+**Merged pull requests:**
+
+- fix: hand ToolBox plugins their own config section [\#80](https://github.com/OpenVoiceOS/ovos-persona-server/pull/80) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.15.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.15.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a2...0.15.0a1)
+
+**Merged pull requests:**
+
+- feat\(openai\): function calling through the OVOS tool model \(client + persona ToolBox tools\) [\#75](https://github.com/OpenVoiceOS/ovos-persona-server/pull/75) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.14.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.14.0a1...0.14.0a2)
+
+**Merged pull requests:**
+
+- docs: cross-link the technical manual [\#66](https://github.com/OpenVoiceOS/ovos-persona-server/pull/66) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.14.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.14.0a1) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a2...0.14.0a1)
+
+**Merged pull requests:**
+
+- feat: serve multiple personas from one process, selected by `model` [\#72](https://github.com/OpenVoiceOS/ovos-persona-server/pull/72) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.4a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a2) (2026-08-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.4a1...0.13.4a2)
+
+**Merged pull requests:**
+
+- refactor: migrate MCP server to the fastmcp package [\#71](https://github.com/OpenVoiceOS/ovos-persona-server/pull/71) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.4a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.4a1) (2026-08-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a2...0.13.4a1)
+
+**Merged pull requests:**
+
+- fix: loader never passes toolbox\_id; plugins own their id [\#60](https://github.com/OpenVoiceOS/ovos-persona-server/pull/60) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.3a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a2) (2026-08-03)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.3a1...0.13.3a2)
+
+**Merged pull requests:**
+
+- refactor: unify OpenAI-dict → AgentMessage conversion, fix stale passthrough tests [\#68](https://github.com/OpenVoiceOS/ovos-persona-server/pull/68) ([JarbasAl](https://github.com/JarbasAl))
+- fix: convert message dicts to AgentMessage in run\_chat/run\_stream [\#67](https://github.com/OpenVoiceOS/ovos-persona-server/pull/67) ([andlo](https://github.com/andlo))
+
+## [0.13.3a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.3a1) (2026-07-26)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.2a1...0.13.3a1)
+
+**Merged pull requests:**
+
+- fix: env-var persona fallback when no --persona \(crash on bare launch\) [\#63](https://github.com/OpenVoiceOS/ovos-persona-server/pull/63) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.2a1) (2026-07-23)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.1a1...0.13.2a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): pin mcp\<2.0.0 [\#61](https://github.com/OpenVoiceOS/ovos-persona-server/pull/61) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.1a1) (2026-06-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.13.0a1...0.13.1a1)
+
+**Merged pull requests:**
+
+- fix\(deps\): pin released ovos-chromadb-embeddings-plugin\>=0.3.0a4; drop last git-ref [\#58](https://github.com/OpenVoiceOS/ovos-persona-server/pull/58) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.13.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.13.0a1) (2026-06-20)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a5...0.13.0a1)
+
+## [0.12.0a5](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a5) (2026-06-14)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a4...0.12.0a5)
+
+**Merged pull requests:**
+
+- docs: add NGI0 Commons Fund attribution [\#55](https://github.com/OpenVoiceOS/ovos-persona-server/pull/55) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.12.0a4](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a4) (2026-06-13)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a3...0.12.0a4)
+
+**Merged pull requests:**
+
+- chore: consolidate test/ into tests/ \(single test directory\) [\#53](https://github.com/OpenVoiceOS/ovos-persona-server/pull/53) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.12.0a3](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a3) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a2...0.12.0a3)
+
+**Merged pull requests:**
+
+- test: real-SDK e2e for merged OpenAI + Ollama endpoints \(+ /generate compat fix\) [\#51](https://github.com/OpenVoiceOS/ovos-persona-server/pull/51) ([JarbasAl](https://github.com/JarbasAl))
+
+## [0.12.0a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a2) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.12.0a1...0.12.0a2)
+
+## [0.12.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.12.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.11.0a1...0.12.0a1)
+
+## [0.11.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.11.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.10.0a1...0.11.0a1)
+
+## [0.10.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.10.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.9.0a1...0.10.0a1)
+
+## [0.9.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.9.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.8.0a1...0.9.0a1)
+
+## [0.8.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.8.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.7.0a1...0.8.0a1)
+
+## [0.7.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.7.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.6.0a1...0.7.0a1)
+
+## [0.6.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.6.0a1) (2026-06-12)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a2...0.6.0a1)
+
+## [0.5.2a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a2) (2026-06-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.2a1...0.5.2a2)
+
+## [0.5.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.2a1) (2026-06-11)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a2...0.5.2a1)
+
+## [0.5.1a2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a2) (2025-12-19)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.1a1...0.5.1a2)
+
+## [0.5.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.1a1) (2025-12-18)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.5.0...0.5.1a1)
+
+## [0.5.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.5.0) (2025-11-08)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.1a1...0.5.0)
+
 ## [0.4.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.1a1) (2025-10-17)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0...0.4.1a1)
 
-**Merged pull requests:**
+## [0.4.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.0) (2025-04-10)
 
-- refactor: migrate to fastapi [\#14](https://github.com/OpenVoiceOS/ovos-persona-server/pull/14) ([JarbasAl](https://github.com/JarbasAl))
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.4.0a1...0.4.0)
+
+## [0.4.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.4.0a1) (2025-04-10)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.2...0.4.0a1)
+
+## [0.3.2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.2) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.2a1...0.3.2)
+
+## [0.3.2a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.2a1) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.1...0.3.2a1)
+
+## [0.3.1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.1) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.1a1...0.3.1)
+
+## [0.3.1a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.1a1) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.0...0.3.1a1)
+
+## [0.3.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.0) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.3.0a1...0.3.0)
+
+## [0.3.0a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.3.0a1) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.2.1...0.3.0a1)
+
+## [0.2.1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.2.1) (2025-03-05)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.2.0...0.2.1)
+
+## [0.2.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.2.0) (2025-01-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.1.0...0.2.0)
+
+## [0.1.0](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.1.0) (2025-01-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.0.2...0.1.0)
+
+## [0.0.2](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.0.2) (2025-01-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.0.1...0.0.2)
+
+## [0.0.1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.0.1) (2025-01-28)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/de5796ee4125e077cedb1e1dbf4f43f91fe8e6c0...0.0.1)
 
 
 
