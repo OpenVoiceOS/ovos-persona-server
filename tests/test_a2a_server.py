@@ -291,8 +291,8 @@ class TestOVOSPersonaAgentExecutor:
         while not queue.queue.empty():
             events.append(queue.queue.get_nowait())
         artifact_events = [e for e in events if hasattr(e, "artifact")]
-        assert len(artifact_events) == 1
-        assert artifact_events[0].artifact.parts[0].text == "hello"
+        texts = [p.text for e in artifact_events for p in e.artifact.parts]
+        assert texts == ["hello"]
 
     def test_cancel_emits_canceled_status(self):
         persona = _fake_persona([])

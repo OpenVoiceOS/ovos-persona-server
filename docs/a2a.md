@@ -110,7 +110,7 @@ curl -X POST http://localhost:8337/a2a/ \
 
 ## Streaming
 
-The A2A endpoint supports SSE streaming. `Persona.stream()` (which yields sentence-level chunks) is called in a thread pool via `asyncio.to_thread`. Each non-empty chunk is emitted as a `TaskArtifactUpdateEvent` SSE event. A final `TaskStatusUpdateEvent(state=completed)` closes the stream.
+The A2A endpoint supports SSE streaming. `Persona.stream()` (which yields sentence-level chunks) runs in a worker thread. Each non-empty chunk is emitted as a `TaskArtifactUpdateEvent` SSE event as soon as the persona yields it. Every artifact update carries at least one part. The final `TaskStatusUpdateEvent(state=completed)` ends the stream.
 
 From the A2A client perspective, streaming provides sentence-level latency — useful when the A2A client feeds text to TTS and wants to start speaking before the full response is ready.
 
@@ -142,12 +142,12 @@ A2A client request
        └─ A2AStarletteApplication     [a2a-sdk]
             └─ DefaultRequestHandler  [a2a-sdk]
                  └─ OVOSPersonaAgentExecutor          [a2a.py:106]
-                      └─ asyncio.to_thread(Persona.stream(messages))
+                      └─ worker thread: Persona.stream(messages)
                            └─ Persona.stream()        [ovos-persona]
                                 └─ solver chain: wikipedia → ddg → LLM → ...
 ```
 
-`Persona.stream()` is synchronous; it is run in a thread pool via `asyncio.to_thread` so the A2A event loop is never blocked.
+`Persona.stream()` is synchronous; it runs in a worker thread, and each sentence goes to the A2A event loop as the persona yields it. The event loop is never blocked.
 
 ## Troubleshooting
 
