@@ -119,6 +119,7 @@ async def test_execute_emits_task_then_status_updates_then_completes() -> None:
 
     assert len(task_events) == 1
     assert len(artifact_events) == 2
+    assert all(len(a.artifact.parts) >= 1 for a in artifact_events)
     assert {a.artifact.artifact_id for a in artifact_events} == {"response"}
     assert status_events[-1].status.state == a2a_mod.TaskState.TASK_STATE_COMPLETED
 
@@ -135,10 +136,9 @@ async def test_execute_skips_empty_chunks() -> None:
     events = [c.args[0] for c in queue.enqueue_event.call_args_list]
     artifact_events = [e for e in events if hasattr(e, "artifact")]
     # Both non-empty chunks are batched into the same artifact_id="response"
-    # artifact (append=False then append=True) — still 2 update events.
-    assert len(artifact_events) == 2
-    assert artifact_events[0].append is False
-    assert artifact_events[1].append is True
+    # artifact (append=False then append=True).
+    assert [e.append for e in artifact_events] == [False, True]
+    assert [p.text for e in artifact_events for p in e.artifact.parts] == ["Hello", " world"]
 
 
 @pytest.mark.asyncio
@@ -163,7 +163,7 @@ async def test_execute_no_answer_emits_failed_status() -> None:
 
 
 @pytest.mark.asyncio
-async def test_execute_last_chunk_flag() -> None:
+async def test_execute_sends_no_empty_artifact_update() -> None:
     persona = _fake_persona(["A", "B", "C"])
     executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
     queue = _fake_queue()
@@ -173,9 +173,62 @@ async def test_execute_last_chunk_flag() -> None:
 
     events = [c.args[0] for c in queue.enqueue_event.call_args_list]
     artifact_events = [e for e in events if hasattr(e, "artifact")]
-    assert artifact_events[-1].last_chunk is True
-    for ev in artifact_events[:-1]:
+    assert all(len(ev.artifact.parts) >= 1 for ev in artifact_events)
+    for ev in artifact_events:
         assert ev.last_chunk is False
+    assert [p.text for e in artifact_events for p in e.artifact.parts] == ["A", " B", " C"]
+
+
+@pytest.mark.asyncio
+async def test_execute_persona_error_after_first_sentence_propagates() -> None:
+    """A persona failure mid-answer is not swallowed; the sent sentence stays sent."""
+    def _sentences():
+        yield "First."
+        raise RuntimeError("backend died")
+
+    persona = _fake_persona([])
+    persona.stream.return_value = _sentences()
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+
+    with pytest.raises(RuntimeError, match="backend died"):
+        await executor.execute(_fake_context("hi"), queue)
+
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
+    texts = [p.text for e in events if hasattr(e, "artifact") for p in e.artifact.parts]
+    assert texts == ["First."]
+
+
+@pytest.mark.asyncio
+async def test_execute_emits_each_sentence_as_the_persona_yields_it() -> None:
+    """The first sentence is enqueued while the persona is still producing the last."""
+    import threading
+
+    first_enqueued = threading.Event()
+    last_produced_after_first_enqueued: list[bool] = []
+
+    def _sentences():
+        yield "First."
+        last_produced_after_first_enqueued.append(first_enqueued.wait(timeout=5))
+        yield "Last."
+
+    persona = _fake_persona([])
+    persona.stream.return_value = _sentences()
+    executor = a2a_mod.OVOSPersonaAgentExecutor(persona)
+    queue = _fake_queue()
+
+    async def _enqueue(event) -> None:
+        if hasattr(event, "artifact") and any(p.text == "First." for p in event.artifact.parts):
+            first_enqueued.set()
+
+    queue.enqueue_event.side_effect = _enqueue
+
+    await executor.execute(_fake_context("hi"), queue)
+
+    assert last_produced_after_first_enqueued == [True]
+    events = [c.args[0] for c in queue.enqueue_event.call_args_list]
+    texts = [p.text for e in events if hasattr(e, "artifact") for p in e.artifact.parts]
+    assert texts == ["First.", " Last."]
 
 
 @pytest.mark.asyncio

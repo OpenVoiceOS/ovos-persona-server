@@ -39,6 +39,8 @@ from ovos_persona_server.persona import run_stream, PersonaNoAnswerError
 
 LOG = logging.getLogger(__name__)
 
+_END = object()  # end-of-stream marker between the producer thread and execute()
+
 # Sentinel names so monkeypatch works without a2a-sdk installed
 AgentCard = None
 AgentCapabilities = None
@@ -160,13 +162,14 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
     """
     A2A ``AgentExecutor`` that delegates to an OVOS ``Persona``.
 
-    ``Persona.stream()`` is synchronous; it is offloaded to a thread via
-    ``asyncio.to_thread`` so the event loop is never blocked.
+    ``Persona.stream()`` is synchronous; it runs in a worker thread so the
+    event loop is never blocked.
 
-    Sentence chunks are emitted as ``TaskArtifactUpdateEvent`` events (via
-    ``TaskUpdater``), enabling real-time SSE streaming for ``message/stream``
-    callers while non-streaming ``message/send`` callers receive the same
-    events collected into a final ``Task`` by the A2A framework.
+    Each sentence is emitted as a ``TaskArtifactUpdateEvent`` (via
+    ``TaskUpdater``) as soon as the persona yields it, enabling real-time SSE
+    streaming for ``message/stream`` callers while non-streaming
+    ``message/send`` callers receive the same events collected into a final
+    ``Task`` by the A2A framework.
     """
 
     def __init__(self, persona: "Persona") -> None:
@@ -215,11 +218,43 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
         )
         await updater.start_work()
 
+        loop = asyncio.get_running_loop()
+        chunks: asyncio.Queue = asyncio.Queue()
+
+        def _produce() -> None:
+            # Runs in a worker thread: hand each sentence to the event loop as
+            # soon as the persona yields it. The end marker always follows; an
+            # error from the persona surfaces when execute() awaits the thread.
+            try:
+                for chunk in run_stream(self._persona, messages,
+                                        session_id=context.context_id):
+                    loop.call_soon_threadsafe(chunks.put_nowait, chunk)
+            finally:
+                loop.call_soon_threadsafe(chunks.put_nowait, _END)
+
+        producer = loop.run_in_executor(None, _produce)
+
+        # All chunks belong to the same streamed artifact: the first chunk
+        # creates it (append=False), subsequent chunks append to it. The last
+        # sentence is unknown until the persona stops, so no update carries
+        # last_chunk=True; the COMPLETED status ends the stream.
+        started = False
         try:
-            chunks = await asyncio.to_thread(
-                lambda: list(run_stream(self._persona, messages,
-                                        session_id=context.context_id))
-            )
+            while True:
+                chunk = await chunks.get()
+                if chunk is _END:
+                    break
+                if not chunk:
+                    continue
+                await updater.add_artifact(
+                    parts=[Part(text=chunk)],
+                    artifact_id="response",
+                    name="response",
+                    append=started,
+                    last_chunk=False,
+                )
+                started = True
+            await producer
         except PersonaNoAnswerError as exc:
             # No handler produced an answer — terminate the task cleanly with
             # a failed status carrying the reason, rather than letting the
@@ -228,21 +263,6 @@ class OVOSPersonaAgentExecutor(AgentExecutor):
                 message=updater.new_agent_message([Part(text=str(exc))])
             )
             return
-
-        # All chunks belong to the same streamed artifact: the first chunk
-        # creates it (append=False), subsequent chunks append to it.
-        non_empty = [c for c in chunks if c]
-        last_index = len(non_empty) - 1
-        started = False
-        for i, chunk in enumerate(non_empty):
-            await updater.add_artifact(
-                parts=[Part(text=chunk)],
-                artifact_id="response",
-                name="response",
-                append=started,
-                last_chunk=(i == last_index),
-            )
-            started = True
 
         await updater.complete()
 
