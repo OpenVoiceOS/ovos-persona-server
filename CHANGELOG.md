@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.11a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.11a1) (2026-10-21)
+
+[Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.10a1...0.18.11a1)
+
+**Merged pull requests:**
+
+- fix: emit each A2A sentence as the persona yields it [\#149](https://github.com/OpenVoiceOS/ovos-persona-server/pull/149) ([openvoiceos-bot](https://github.com/openvoiceos-bot))
+
 ## [0.18.10a1](https://github.com/OpenVoiceOS/ovos-persona-server/tree/0.18.10a1) (2026-10-20)
 
 [Full Changelog](https://github.com/OpenVoiceOS/ovos-persona-server/compare/0.18.9a1...0.18.10a1)
